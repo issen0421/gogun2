@@ -8,10 +8,17 @@
         body { font-family: "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif; background: #f8f9fa; color: #333; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; }
         .container { max-width: 800px; width: 100%; text-align: center; }
         h1 { color: #2c3e50; margin-bottom: 10px; font-size: 24px; }
-        .description { color: #7f8c8d; margin-bottom: 30px; font-size: 14px; }
+        .description { color: #7f8c8d; margin-bottom: 20px; font-size: 14px; }
+        
         .search-box { position: sticky; top: 10px; z-index: 100; background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 100%; box-sizing: border-box; }
-        input { width: 90%; padding: 15px; font-size: 20px; border: 2px solid #dfe6e9; border-radius: 10px; outline: none; transition: border-color 0.3s; }
-        input:focus { border-color: #3498db; }
+        input[type="text"] { width: 90%; padding: 15px; font-size: 20px; border: 2px solid #dfe6e9; border-radius: 10px; outline: none; transition: border-color 0.3s; }
+        input[type="text"]:focus { border-color: #3498db; }
+        
+        /* チェックボックスのデザイン */
+        .options { margin-top: 15px; display: flex; justify-content: center; gap: 20px; font-size: 14px; color: #555; }
+        .checkbox-label { display: flex; align-items: center; cursor: pointer; user-select: none; }
+        .checkbox-label input { margin-right: 8px; transform: scale(1.2); cursor: pointer; }
+
         .result-count { margin-top: 15px; font-size: 14px; color: #95a5a6; }
         .result-area { margin-top: 20px; display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 15px; width: 100%; }
         
@@ -46,6 +53,14 @@
 
     <div class="search-box">
         <input type="text" id="searchInput" placeholder="ひらがなで単語を入力" oninput="search()">
+        
+        <div class="options">
+            <label class="checkbox-label">
+                <input type="checkbox" id="ignoreDakuten" onchange="search()">
+                濁音・半濁音を区別しない（が＝か、ぱ＝は）
+            </label>
+        </div>
+
         <div id="resultCount" class="result-count">拗音(っゃゅょ等)には対応していません。大文字にして入力してください。</div>
     </div>
 
@@ -53,7 +68,7 @@
 </div>
 
 <script>
-    // カタカナ修正済みの全データ
+    // データ（前回修正済み）
     const myDataGroups = [
     { "groupName": "四季", "words": ["はる", "なつ", "あき", "ふゆ"] },
     { "groupName": "読ミ方二種類", "words": ["しきし", "いろがみ"] },
@@ -85,7 +100,7 @@
     { "groupName": "読ミ方二種類", "words": ["はなびら", "かべん"] },
     { "groupName": "読ミ方二種類", "words": ["こきよう", "ふるさと"] },
     { "groupName": "読ミ方二種類", "words": ["こんぽん", "ねもと"] },
-    { "groupName": "読ミ方二種類", "words": ["ぎんなん", "ぎんきよう"] }, /* 修正済み */
+    { "groupName": "読ミ方二種類", "words": ["ぎんなん", "ぎんきよう"] },
     { "groupName": "逆カラ読ムト読ミ変化", "words": ["にほん", "につぽん", "ほんじつ"] },
     { "groupName": "逆カラ読ムト読ミ変化", "words": ["ちか", "したぢ"] },
     { "groupName": "逆カラ読ムト読ミ変化", "words": ["みずぎ", "ちやくすい"] },
@@ -198,7 +213,7 @@
     { "groupName": "挨拶", "words": ["おはよう", "こんにちは", "こんばんは", ""] },
     { "groupName": "挨拶", "words": ["いただきます", "ごちそうさま"] },
     { "groupName": "挨拶", "words": ["ただいま", "おかえり"] },
-    { "groupName": "挨拶", "words": ["いつてきます", "いつてらつしやい"] }, /* 修正済み */
+    { "groupName": "挨拶", "words": ["いつてきます", "いつてらつしやい"] },
     { "groupName": "挨拶", "words": ["おはよう", "おやすみ"] },
     { "groupName": "挨拶", "words": ["あけましておめでとう", "ことしもよろしく"] },
     { "groupName": "グラフ", "words": ["おれせんぐらふ", "えんぐらふ", "ぼうぐらふ"] },
@@ -299,7 +314,7 @@
     { "groupName": "都道府県", "words": ["ほつかいどう", "あおもり", "いわて", "みやぎ", "あきた", "やまがた", "ふくしま", "いばらき", "とちぎ", "ぐんま", "さいたま", "ちば", "とうきよう", "かながわ", "にいがた", "とやま", "いしかわ", "ふくい", "やまなし", "ながの", "ぎふ", "しずおか", "あいち", "みえ", "しが", "きようと", "おおさか", "ひようご", "なら", "わかやま", "とつとり", "しまね", "おかやま", "ひろしま", "やまぐち", "とくしま", "かがわ", "えひめ", "こうち", "ふくおか", "さが", "ながさき", "くまもと", "おおいた", "みやざき", "かごしま", "おきなわ"] },
     { "groupName": "違県庁所在地", "words": ["さつぽろ", "もりおか", "せんだい", "みと", "うつのみや", "まえばし", "さいたま", "よこはま", "こうふ", "かなざわ", "なごや", "おおつ", "つ", "こうべ", "まつえ", "たかまつ", "まつやま", "なは"] },
     { "groupName": "カゾエカタ", "words": ["ほん", "だい", "まい", "けん", "きやく", "とう", "わ", "こ", "ひき", "たま", "そく", "ちよう", "てき", "く", "つう", "りよう", "き", "せき", "ちやく", "きん", "ふさ", "かん", "はい"] },
-    { "groupName": "部首", "words": ["にんべん", "にすい", "うかんむり", "おおざと", "こざと", "りつとう", "ぎようにんべん", "くさかんむり", "くにがまえ", "さんずい", "しかばね", "てへん", "まだれ", "がんだれ", "やまいだれ", "れつか（れんが）", "こころ", "けものへん", "しめすへん", "あなかんむり", "ころもへん", "しんによう（しんにゆう）", "そうによう", "もんがまえ", "おおがい", "あめかんむり", "たけかんむり", "りつしんべん", "ごんべん"] }, /* 修正済み */
+    { "groupName": "部首", "words": ["にんべん", "にすい", "うかんむり", "おおざと", "こざと", "りつとう", "ぎようにんべん", "くさかんむり", "くにがまえ", "さんずい", "しかばね", "てへん", "まだれ", "がんだれ", "やまいだれ", "れつか（れんが）", "こころ", "けものへん", "しめすへん", "あなかんむり", "ころもへん", "しんによう（しんにゆう）", "そうによう", "もんがまえ", "おおがい", "あめかんむり", "たけかんむり", "りつしんべん", "ごんべん"] },
     { "groupName": "亻ﾝ氵礻", "words": ["い", "ん", "し", "ね"] },
     { "groupName": "乗物", "words": ["えき", "くうこう", "みなと"] },
     { "groupName": "乗物", "words": ["どうろ", "せんろ", "かつそうろ"] },
@@ -312,7 +327,7 @@
     { "groupName": "公園", "words": ["ぶらんこ", "すべりだい", "しーそー"] },
     { "groupName": "布団", "words": ["ふとん", "まくら"] },
     { "groupName": "布団", "words": ["かけぶとん", "しきぶとん"] },
-    { "groupName": "似", "words": ["いか", "たこ"] }, /* 修正済み */
+    { "groupName": "似", "words": ["いか", "たこ"] },
     { "groupName": "似", "words": ["うに", "くり"] },
     { "groupName": "似", "words": ["ほし", "ひとで"] },
     { "groupName": "似", "words": ["おうとつ", "でこぼこ"] },
@@ -454,10 +469,16 @@
     { "groupName": "対義語", "words": ["もーにんぐ", "いぶにんぐ"] }
     ];
 
+    // 濁点・半濁点を取り除く関数
+    function toSeion(str) {
+        return str.normalize('NFD').replace(/[\u3099\u309A]/g, "");
+    }
+
     function search() {
         const input = document.getElementById('searchInput').value.trim();
         const resultArea = document.getElementById('resultArea');
         const resultCount = document.getElementById('resultCount');
+        const ignoreDakuten = document.getElementById('ignoreDakuten').checked;
         
         resultArea.innerHTML = "";
 
@@ -468,7 +489,7 @@
 
         const inputChars = input.split("");
         
-        // 検索結果を格納する配列（完全一致と惜しい一致を分ける）
+        // 検索結果を格納する配列
         let perfectMatches = [];
         let nearMatches = [];
 
@@ -476,7 +497,18 @@
             const combinedText = group.words.join("");
             
             // 含まれていない文字を探す
-            const missingChars = inputChars.filter(char => !combinedText.includes(char));
+            const missingChars = inputChars.filter(originalChar => {
+                let targetChar = originalChar;
+                let targetTextToSearch = combinedText;
+
+                // チェックボックスがONの場合、両方を清音化して比較
+                if (ignoreDakuten) {
+                    targetChar = toSeion(originalChar);
+                    targetTextToSearch = toSeion(combinedText);
+                }
+                
+                return !targetTextToSearch.includes(targetChar);
+            });
             
             // ミスが0文字（完全一致）
             if (missingChars.length === 0) {
@@ -496,10 +528,8 @@
             const isPerfect = match.missing.length === 0;
             
             const card = document.createElement('div');
-            // クラスを使い分ける（緑：完全、オレンジ：惜しい）
             card.className = `group-card ${isPerfect ? 'match-perfect' : 'match-near'}`;
             
-            // バッジの表示
             const badgeClass = isPerfect ? 'badge-perfect' : 'badge-near';
             const badgeText = isPerfect ? '揃いました！' : 'あと1文字！';
             
@@ -511,7 +541,6 @@
                 <div class="word-list">${wordsHtml}</div>
             `;
             
-            // 惜しい場合は足りない文字を表示
             if (!isPerfect) {
                 html += `<div class="missing-info">※ 「${match.missing[0]}」が含まれていません</div>`;
             }
