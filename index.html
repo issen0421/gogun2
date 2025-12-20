@@ -35,6 +35,10 @@
         .word-list { display: flex; flex-wrap: wrap; gap: 8px; }
         .word-item { background: #ebf5fb; color: #2980b9; padding: 4px 12px; border-radius: 6px; font-size: 18px; font-weight: bold; }
         
+        /* ▼▼▼ 追加したスタイル ▼▼▼ */
+        .highlight { color: #e74c3c; font-weight: 900; text-decoration: underline; }
+        /* ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲ */
+
         .badge { position: absolute; top: 10px; right: 10px; font-size: 10px; padding: 2px 8px; border-radius: 10px; color: white; font-weight: bold; }
         .badge-perfect { background: #27ae60; }
         .badge-near { background: #f39c12; }
@@ -113,26 +117,25 @@
     // 起動時の処理
     window.onload = function() {
         loadData();
-        search(); // 初回検索（もし入力があれば）
+        search(); // 初回検索
     };
 
-    // データの読み込み（Local Storage -> 変数）
+    // データの読み込み
     function loadData() {
         const storedData = localStorage.getItem('wordSearchData');
         if (storedData) {
             appData = JSON.parse(storedData);
         } else {
-            // 保存データがない場合はデフォルトデータを使用
             appData = JSON.parse(JSON.stringify(defaultData));
         }
         updateManageList();
     }
 
-    // データの保存（変数 -> Local Storage）
+    // データの保存
     function saveData() {
         localStorage.setItem('wordSearchData', JSON.stringify(appData));
         updateManageList();
-        search(); // 保存したら検索結果も更新
+        search();
         alert("保存しました！");
     }
 
@@ -146,7 +149,6 @@
             return;
         }
 
-        // 全角スペースや読点を区切り文字として配列化
         const words = wordsStr.split(/[\s,、]+/).filter(w => w.length > 0);
 
         if (words.length === 0) {
@@ -154,13 +156,11 @@
             return;
         }
 
-        // データ追加
         appData.push({
             groupName: name,
             words: words
         });
 
-        // フォームをクリア
         document.getElementById('newGroupName').value = "";
         document.getElementById('newGroupWords').value = "";
 
@@ -191,7 +191,6 @@
         listEl.innerHTML = "";
         countEl.innerText = appData.length;
 
-        // 新しいものが上に来るように逆順で表示
         appData.slice().reverse().forEach((group, revIndex) => {
             const realIndex = appData.length - 1 - revIndex;
             
@@ -230,6 +229,37 @@
             'ぁ': 'あ', 'ぃ': 'い', 'ぅ': 'う', 'ぇ': 'え', 'ぉ': 'お'
         };
         return res.split('').map(char => smallToLarge[char] || char).join('');
+    }
+
+    // ハイライト用のHTML生成関数
+    function createHighlightedHtml(word, inputChars, looseMode) {
+        let html = "";
+        for (let char of word) {
+            let isMatch = false;
+            
+            // 入力された文字の中に、この文字と一致するものがあるか確認
+            for (let inputChar of inputChars) {
+                let c1 = char.toLowerCase();
+                let c2 = inputChar.toLowerCase();
+                
+                if (looseMode) {
+                    c1 = normalizeString(c1);
+                    c2 = normalizeString(c2);
+                }
+                
+                if (c1 === c2) {
+                    isMatch = true;
+                    break;
+                }
+            }
+            
+            if (isMatch) {
+                html += `<span class="highlight">${char}</span>`;
+            } else {
+                html += char;
+            }
+        }
+        return html;
     }
 
     // 検索処理
@@ -285,7 +315,12 @@
             card.className = `group-card ${isPerfect ? 'match-perfect' : 'match-near'}`;
             const badgeClass = isPerfect ? 'badge-perfect' : 'badge-near';
             const badgeText = isPerfect ? '揃いました！' : 'あと1文字！';
-            const wordsHtml = group.words.map(w => `<span class="word-item">${w}</span>`).join("");
+            
+            // 単語リスト生成時にハイライト処理を適用
+            const wordsHtml = group.words.map(w => {
+                const highlighted = createHighlightedHtml(w, inputChars, looseMode);
+                return `<span class="word-item">${highlighted}</span>`;
+            }).join("");
             
             let html = `
                 <span class="badge ${badgeClass}">${badgeText}</span>
