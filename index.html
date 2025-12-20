@@ -3,18 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>語群検索システム</title>
+    <title>語群検索システム（管理機能付き）</title>
     <style>
         body { font-family: "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif; background: #f8f9fa; color: #333; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; }
         .container { max-width: 800px; width: 100%; text-align: center; }
         h1 { color: #2c3e50; margin-bottom: 10px; font-size: 24px; }
         .description { color: #7f8c8d; margin-bottom: 20px; font-size: 14px; }
         
+        /* 検索エリア */
         .search-box { position: sticky; top: 10px; z-index: 100; background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 100%; box-sizing: border-box; }
-        input[type="text"] { width: 90%; padding: 15px; font-size: 20px; border: 2px solid #dfe6e9; border-radius: 10px; outline: none; transition: border-color 0.3s; }
-        input[type="text"]:focus { border-color: #3498db; }
+        input[type="text"], textarea { width: 90%; padding: 15px; font-size: 16px; border: 2px solid #dfe6e9; border-radius: 10px; outline: none; transition: border-color 0.3s; }
+        input[type="text"]:focus, textarea:focus { border-color: #3498db; }
         
-        /* チェックボックスのデザイン */
         .options { margin-top: 15px; display: flex; justify-content: center; gap: 20px; font-size: 14px; color: #555; }
         .checkbox-label { display: flex; align-items: center; cursor: pointer; user-select: none; }
         .checkbox-label input { margin-right: 8px; transform: scale(1.2); cursor: pointer; }
@@ -22,12 +22,10 @@
         .result-count { margin-top: 15px; font-size: 14px; color: #95a5a6; }
         .result-area { margin-top: 20px; display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 15px; width: 100%; }
         
+        /* カードデザイン */
         .group-card { background: white; border-radius: 12px; padding: 20px; text-align: left; box-shadow: 0 2px 8px rgba(0,0,0,0.05); border-top: 4px solid #3498db; transition: transform 0.2s; position: relative; }
         .group-card:hover { transform: translateY(-3px); }
-        
-        /* 完全一致のデザイン */
         .match-perfect { border-top-color: #27ae60; }
-        /* 惜しい一致のデザイン */
         .match-near { border-top-color: #f39c12; opacity: 0.9; }
 
         .group-name { display: block; font-size: 12px; color: #3498db; font-weight: bold; margin-bottom: 8px; text-transform: uppercase; }
@@ -40,9 +38,23 @@
         .badge { position: absolute; top: 10px; right: 10px; font-size: 10px; padding: 2px 8px; border-radius: 10px; color: white; font-weight: bold; }
         .badge-perfect { background: #27ae60; }
         .badge-near { background: #f39c12; }
-
         .missing-info { font-size: 11px; color: #e67e22; margin-top: 8px; font-style: italic; }
         .no-result { grid-column: 1 / -1; padding: 50px; color: #bdc3c7; font-size: 18px; }
+
+        /* 管理画面エリア */
+        .manage-toggle { margin-top: 20px; cursor: pointer; color: #3498db; text-decoration: underline; font-size: 14px; }
+        .manage-area { display: none; margin-top: 20px; background: #fff; padding: 20px; border-radius: 15px; border: 1px solid #ddd; width: 100%; box-sizing: border-box; }
+        .input-group { margin-bottom: 15px; text-align: left; }
+        .input-group label { display: block; margin-bottom: 5px; font-weight: bold; font-size: 12px; }
+        .btn { padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; color: white; }
+        .btn-add { background-color: #27ae60; width: 100%; font-size: 16px; }
+        .btn-delete { background-color: #e74c3c; padding: 5px 10px; font-size: 12px; margin-left: 10px; }
+        .btn-reset { background-color: #95a5a6; margin-top: 20px; font-size: 12px; }
+        
+        .data-list { max-height: 300px; overflow-y: auto; text-align: left; border-top: 1px solid #eee; margin-top: 15px; padding-top: 15px; }
+        .data-item { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f0f0f0; padding: 8px 0; }
+        .data-content { font-size: 14px; }
+        .data-sub { font-size: 11px; color: #888; display: block; margin-top: 2px;}
     </style>
 </head>
 <body>
@@ -56,719 +68,221 @@
         
         <div class="options">
             <label class="checkbox-label">
-                <input type="checkbox" id="ignoreDakuten" onchange="search()">
-                濁音・半濁音を区別しない（が＝か、ぱ＝は）
+                <input type="checkbox" id="looseMode" onchange="search()">
+                濁音・半濁音・拗音を区別しない（が＝か、っ＝つ）
             </label>
         </div>
 
-        <div id="resultCount" class="result-count">拗音(っゃゅょ等)には対応していません。大文字にして入力してください。</div>
+        <div id="resultCount" class="result-count">文字を入力してください</div>
+    </div>
+
+    <div class="manage-toggle" onclick="toggleManageArea()">▼ 語群の登録・編集を開く</div>
+
+    <div id="manageArea" class="manage-area">
+        <h3>新しい語群を追加</h3>
+        <div class="input-group">
+            <label>語群名（ジャンル）</label>
+            <input type="text" id="newGroupName" placeholder="例：四季">
+        </div>
+        <div class="input-group">
+            <label>単語（スペースか読点「、」で区切る）</label>
+            <textarea id="newGroupWords" rows="3" placeholder="例：はる なつ あき ふゆ"></textarea>
+        </div>
+        <button class="btn btn-add" onclick="addNewGroup()">追加する</button>
+
+        <h3>登録済みリスト (<span id="dataCount">0</span>件)</h3>
+        <div id="dataList" class="data-list">
+            </div>
+        
+        <button class="btn btn-reset" onclick="resetData()">初期データに戻す</button>
     </div>
 
     <div id="resultArea" class="result-area"></div>
 </div>
 
 <script>
-    // データ（前回修正済み）
-    const myDataGroups = [
-    { "groupName": "角", "words": ["かど", "つの", "かく"] },
-    { "groupName": "空", "words": ["そら", "から"] },
-    { "groupName": "主", "words": ["ぬし", "あるじ"] },
-    { "groupName": "紅", "words": ["べに", "くれない"] },
-    { "groupName": "頭", "words": ["あたま", "かしら"] },
-    { "groupName": "弾く", "words": ["ひく", "はじく"] },
-    { "groupName": "辛い", "words": ["からい", "つらい"] },
-    { "groupName": "開く", "words": ["あく", "ひらく"] },
-    { "groupName": "色紙", "words": ["しきし", "いろがみ"] },
-    { "groupName": "二重", "words": ["にじゆう", "ふたえ"] },
-    { "groupName": "三重", "words": ["さんじゆう", "みえ"] },
-    { "groupName": "変化", "words": ["へんか", "へんげ"] },
-    { "groupName": "金色", "words": ["きんいろ", "こんじき"] },
-    { "groupName": "翡翠", "words": ["ひすい", "かわせみ"] },
-    { "groupName": "金星", "words": ["きんせい", "きんぼし"] },
-    { "groupName": "見物", "words": ["みもの", "けんぶつ"] },
-    { "groupName": "風車", "words": ["かざぐるま", "ふうしや"] },
-    { "groupName": "紅葉", "words": ["こうよう", "もみじ"] },
-    { "groupName": "最中", "words": ["さいちゆう", "もなか"] },
-    { "groupName": "市場", "words": ["いちば", "しじよう"] },
-    { "groupName": "身体", "words": ["しんたい", "からだ"] },
-    { "groupName": "人気", "words": ["にんき", "ひとけ"] },
-    { "groupName": "水面", "words": ["みなも", "すいめん"] },
-    { "groupName": "大事", "words": ["おおごと", "だいじ"] },
-    { "groupName": "梅雨", "words": ["つゆ", "ばいう"] },
-    { "groupName": "白髪", "words": ["しらが", "はくはつ"] },
-    { "groupName": "牧場", "words": ["ぼくじよう", "まきば"] },
-    { "groupName": "一部", "words": ["いちぶ", "いつぷん"] },
-    { "groupName": "明日", "words": ["あした", "あす"] },
-    { "groupName": "昨日", "words": ["きのう", "さくじつ"] },
-    { "groupName": "大人気", "words": ["だいにんき", "おとなげ"] },
-    { "groupName": "大分", "words": ["だいぶ", "おおいた"] },
-    { "groupName": "墓石", "words": ["はかいし", "ぼせき"] },
-    { "groupName": "黒子", "words": ["くろこ", "ほくろ"] },
-    { "groupName": "十八番", "words": ["おはこ", "じゆうはちばん"] },
-    { "groupName": "お札", "words": ["おさつ", "おふだ"] },
-    { "groupName": "銀杏", "words": ["ぎんなん", "いちよう"] },
-    { "groupName": "背筋", "words": ["せすじ", "はいきん"] },
-    { "groupName": "初心", "words": ["うぶ", "しよしん"] },
-    { "groupName": "永遠", "words": ["とわ", "えいえん"] },
-    { "groupName": "花弁", "words": ["はなびら", "かべん"] },
-    { "groupName": "故郷", "words": ["こきよう", "ふるさと"] },
-    { "groupName": "根本", "words": ["こんぽん", "ねもと"] },
-    { "groupName": "日本 本日", "words": ["にほん", "につぽん", "ほんじつ"] },
-    { "groupName": "地下 下地", "words": ["ちか", "したぢ"] },
-    { "groupName": "水着 着水", "words": ["みずぎ", "ちやくすい"] },
-    { "groupName": "虚空 空虚", "words": ["こくう", "くうきよ"] },
-    { "groupName": "誕生 生誕", "words": ["たんじよう", "せいたん"] },
-    { "groupName": "学科 科学", "words": ["がつか", "かがく"] },
-    { "groupName": "物品 品物", "words": ["ぶつぴん", "しなもの"] },
-    { "groupName": "蜂蜜 蜜蜂", "words": ["はちみつ", "みつばち"] },
-    { "groupName": "分数 数分", "words": ["ぶんすう", "すうふん"] },
-    { "groupName": "数人 人数", "words": ["すうにん", "にんずう"] },
-    { "groupName": "数日 日数", "words": ["すうじつ", "につすう"] },
-    { "groupName": "配分 分配", "words": ["はいぶん", "ぶんぱい"] },
-    { "groupName": "風雨 雨風", "words": ["ふうう", "あめかぜ"] },
-    { "groupName": "数多 多数 数多く", "words": ["あまた", "たすう", "かずおおく"] },
-    { "groupName": "相手 手相", "words": ["あいて", "てそう"] },
-    { "groupName": "逆上 逆上がり", "words": ["ぎやくじよう", "さかあがり"] },
-    { "groupName": "⚡️", "words": ["いかづち", "いなづま", "さんだー", "かみなり"] },
-    { "groupName": "🍙", "words": ["おにぎり", "おむすび"] },
-    { "groupName": "ウインナー", "words": ["ういんなー", "そーせーじ"] },
-    { "groupName": "🧛", "words": ["きゆうけつき", "ゔあんぱいあ"] },
-    { "groupName": "綿アメ", "words": ["わたあめ", "わたがし"] },
-    { "groupName": "ミス", "words": ["ごじ", "だつじ"] },
-    { "groupName": "複数", "words": ["しんりん", "かえん"] },
-    { "groupName": "大人 夫人", "words": ["おとな", "ふじん"] },
-    { "groupName": "肉", "words": ["ちきん", "びーふ", "ぽーく"] },
-    { "groupName": "金", "words": ["こうか", "しへい", "かへい"] },
-    { "groupName": "足八本", "words": ["おくとぱす", "すぱいだー"] },
-    { "groupName": "文房具", "words": ["じようぎ", "こんぱす"] },
-    { "groupName": "画", "words": ["がぞう", "どうが"] },
-    { "groupName": "兎亀", "words": ["うさぎ", "かめ"] },
-    { "groupName": "川流れ、木から落ちる", "words": ["かつぱ", "さる"] },
-    { "groupName": "円 三角形", "words": ["たいかくせん", "ちよつけい"] },
-    { "groupName": "俳句短歌", "words": ["はいく", "たんか"] },
-    { "groupName": "禁", "words": ["きんしゆ", "きんえん"] },
-    { "groupName": "ボウリング", "words": ["すとらいく", "すぺあ"] },
-    { "groupName": "野球", "words": ["すとらいく", "ぼーる", "あうと"] },
-    { "groupName": "七夕", "words": ["おりひめ", "ひこぼし"] },
-    { "groupName": "着脱", "words": ["かぶる", "きる", "はく"] },
-    { "groupName": "着脱", "words": ["あたま", "あし", "うで", "くび", "こし"] },
-    { "groupName": "秒分時", "words": ["びよう", "ふん", "じ", "にち", "しゆう", "ねん"] },
-    { "groupName": "三大珍味", "words": ["とりゆふ", "きやびあ", "ふおあぐら"] },
-    { "groupName": "木森林", "words": ["き", "もり", "はやし"] },
-    { "groupName": "カメラ", "words": ["しやつたー", "ふらつしゆ", "ぴんと"] },
-    { "groupName": "カメラ", "words": ["きる", "たく", "あわせる"] },
-    { "groupName": "三態", "words": ["こたい", "えきたい", "きたい"] },
-    { "groupName": "水", "words": ["すいじようき", "みず", "こおり"] },
-    { "groupName": "氏名", "words": ["みようじ", "なまえ"] },
-    { "groupName": "紙幣人物", "words": ["のぐちひでよ", "ひぐちいちよう", "ふくざわゆきち"] },
-    { "groupName": "紙幣人物", "words": ["きたさとしばさぶろう", "つだうめこ", "しぶさわえいいち"] },
-    { "groupName": "衣食住", "words": ["い", "しよく", "じゆう"] },
-    { "groupName": "三匹子豚", "words": ["わら", "いし", "れんが"] },
-    { "groupName": "演奏方法", "words": ["ふく", "たたく", "ひく"] },
-    { "groupName": "焼き方", "words": ["れあ", "みでいあむ", "うえるだん"] },
-    { "groupName": "人数", "words": ["ぴん", "こんび", "とりお"] },
-    { "groupName": "松竹梅", "words": ["まつ", "たけ", "うめ"] },
-    { "groupName": "松竹梅", "words": ["しよう", "ちく", "ばい"] },
-    { "groupName": "切断", "words": ["ほうちよう", "ないふ", "のこぎり", "はさみ"] },
-    { "groupName": "紙", "words": ["きる", "やぶる"] },
-    { "groupName": "砂糖量", "words": ["むとう", "びとう", "かとう", "さとう"] },
-    { "groupName": "朝昼夜", "words": ["あさ", "ひる", "よる"] },
-    { "groupName": "朝昼夜", "words": ["ちようしよく", "ちゆうしよく", "ゆうしよく"] },
-    { "groupName": "桃太郎", "words": ["いぬ", "さる", "きじ", "ももたろう"] },
-    { "groupName": "桃太郎", "words": ["しばかり", "せんたく", "おにたいじ"] },
-    { "groupName": "桃太郎", "words": ["もも", "どんぶらこ"] },
-    { "groupName": "よく見る", "words": ["むしめがね(虫)", "ぼうえんきよう(月)"] },
-    { "groupName": "柄", "words": ["すとらいぷ", "ぼーだー", "ちえつく"] },
-    { "groupName": "表紙", "words": ["ひようし", "せびようし", "うらびようし"] },
-    { "groupName": "大きさ", "words": ["だい", "ちゆう", "しよう"] },
-    { "groupName": "大きさ", "words": ["えす", "えむ", "える"] },
-    { "groupName": "学校", "words": ["しよう", "ちゆう", "こう", "だい"] },
-    { "groupName": "月", "words": ["まんげつ", "はんげつ", "しんげつ"] },
-    { "groupName": "月", "words": ["たいよう", "つき", "まんげつ"] },
-    { "groupName": "月", "words": ["うす", "きね", "うさぎ", "もち"] },
-    { "groupName": "寿司", "words": ["ねた", "わさび", "しやり", "すし"] },
-    { "groupName": "植物", "words": ["ね", "くき", "はな", "は"] },
-    { "groupName": "点", "words": ["くてん", "だくてん", "とうてん", "はんだくてん"] },
-    { "groupName": "丸", "words": ["くてん", "はんだくてん", "まる", "さーくる", "おー", "ぜろ", "れい"] },
-    { "groupName": "漢字", "words": ["とめ", "はね", "はらい"] },
-    { "groupName": "漢字", "words": ["へん", "つくり"] },
-    { "groupName": "書くもの", "words": ["ふで", "えんぴつ", "ぼーるぺん", "けしごむ", "くれよん"] },
-    { "groupName": "食器", "words": ["ないふ", "ふおーく", "すぷーん", "はし"] },
-    { "groupName": "食器", "words": ["れんげ", "しゃもじ", "すぷーん"] },
-    { "groupName": "食器", "words": ["きる", "さす", "すくう", "はさむ"] },
-    { "groupName": "ー＝", "words": ["るーまにあ", "はーもにか", "おーぷにんぐ"] },
-    { "groupName": "山", "words": ["とざん", "とうちよう", "げざん"] },
-    { "groupName": "整列", "words": ["きりつ", "れい", "ちやくせき"] },
-    { "groupName": "報連相", "words": ["ほうこく", "れんらく", "そうだん"] },
-    { "groupName": "□", "words": ["くち", "ひ", "め", "た", "しな"] },
-    { "groupName": "立方体", "words": ["てん", "へん", "めん"] },
-    { "groupName": "直方体", "words": ["たかさ", "よこはば", "おくゆき"] },
-    { "groupName": "ジャンケン", "words": ["ぐー", "ちよき", "ぱー"] },
-    { "groupName": "ジャンケン", "words": ["いし", "かみ", "はさみ"] },
-    { "groupName": "勝敗", "words": ["るーず", "ういん", "どろー"] },
-    { "groupName": "ジャンケン", "words": ["かち", "まけ", "あいこ"] },
-    { "groupName": "メダル", "words": ["きん", "ぎん", "どう"] },
-    { "groupName": "メダル", "words": ["いちい", "にい", "さんい"] },
-    { "groupName": "メダル", "words": ["ごーるど", "しるばー", "ぶろんず"] },
-    { "groupName": "数", "words": ["しんぐる", "だぶる", "とりぷる"] },
-    { "groupName": "力", "words": ["してん", "りきてん", "さようてん"] },
-    { "groupName": "初夢", "words": ["いちふじ", "にたか", "さんなすび"] },
-    { "groupName": "初夢", "words": ["やま。とり", "やさい"] },
-    { "groupName": "無駄", "words": ["こばん", "しんじゆ", "ねんぶつ", "ろんご"] },
-    { "groupName": "無駄", "words": ["ねこ", "ぶた", "うま", "いぬ"] },
-    { "groupName": "より強い", "words": ["おに", "かなぼう"] },
-    { "groupName": "なにもいれない", "words": ["こーひー", "ぶらつく", "こうちや", "すとれーと"] },
-    { "groupName": "アイス", "words": ["こーん", "かつぷ", "ぼう"] },
-    { "groupName": "漢字に見える", "words": ["こう(工)", "ちから(力)", "ゆう(夕)", "に(二)", "はち(八)", "くち(口)"] },
-    { "groupName": "ヘノヘノモヘジ", "words": ["へ", "の", "も", "じ"] },
-    { "groupName": "顔", "words": ["め", "はな", "くち", "りんかく", "まゆ"] },
-    { "groupName": "顔", "words": ["みる", "かぐ", "きく", "はなす", "いう"] },
-    { "groupName": "音読ミカタ", "words": ["おと", "ね", "おん", "いん"] },
-    { "groupName": "四季", "words": ["しゆん", "か", "しゆう", "とう"] },
-    { "groupName": "四季", "words": ["はる", "なつ", "あき", "ふゆ"] },
-    { "groupName": "シーズン", "words": ["すぷりんぐ", "さまー", "おーたむ", "ういんたー"] },
-    { "groupName": "挨拶", "words": ["おはよう", "こんにちは", "こんばんは", ""] },
-    { "groupName": "挨拶", "words": ["いただきます", "ごちそうさま"] },
-    { "groupName": "挨拶", "words": ["ただいま", "おかえり"] },
-    { "groupName": "挨拶", "words": ["いつてきます", "いつてらつしやい"] },
-    { "groupName": "挨拶", "words": ["おはよう", "おやすみ"] },
-    { "groupName": "挨拶", "words": ["あけましておめでとう", "ことしもよろしく"] },
-    { "groupName": "グラフ", "words": ["おれせんぐらふ", "えんぐらふ", "ぼうぐらふ"] },
-    { "groupName": "自転車ル", "words": ["べる", "ぺだる", "さどる", "はんどる"] },
-    { "groupName": "自転車", "words": ["ならす", "ふむ", "すわる", "にぎる"] },
-    { "groupName": "文字種", "words": ["ひらがな", "かたかな", "かんじ", "すうじ", "あるふあべつと"] },
-    { "groupName": "起承転結", "words": ["き", "しよう", "てん", "けつ"] },
-    { "groupName": "喜怒哀楽", "words": ["き", "ど", "あい", "らく"] },
-    { "groupName": "花鳥風月", "words": ["か", "ちよう", "ふう", "げつ"] },
-    { "groupName": "花鳥風月", "words": ["ふらわー", "ばーど", "ういんど", "むーん"] },
-    { "groupName": "花鳥風月", "words": ["はな", "とり", "かぜ", "つき"] },
-    { "groupName": "四則演算", "words": ["か", "げん", "じよう", "じよ"] },
-    { "groupName": "四則演算", "words": ["たす", "ひく", "かける", "わる"] },
-    { "groupName": "四則演算", "words": ["わ", "さ", "せき", "しよう"] },
-    { "groupName": "投げ", "words": ["えんばん", "やり", "ほうがん", "はんまー"] },
-    { "groupName": "方角", "words": ["とう", "ざい", "なん", "ぼく"] },
-    { "groupName": "方角", "words": ["うえすと", "いーすと", "のーす", "さうす"] },
-    { "groupName": "方角", "words": ["ひがし", "にし", "みなみ", "きた"] },
-    { "groupName": "方向", "words": ["じよう", "げ", "さ", "ゆう"] },
-    { "groupName": "方向", "words": ["うえ", "した", "ひだり", "みぎ"] },
-    { "groupName": "方向", "words": ["れふと", "らいと", "あつぷ", "だうん"] },
-    { "groupName": "方向", "words": ["ちよくしん", "うせつ", "させつ"] },
-    { "groupName": "前後左右", "words": ["ぜん", "ご", "さ", "ゆう"] },
-    { "groupName": "単位", "words": ["きろ", "でし", "せんち", "みり", "めーる", "ん", "ぐらむ", "りつとる"] },
-    { "groupName": "金単位", "words": ["どる", "えん"] },
-    { "groupName": "時計", "words": ["にじ", "ごじ", "くじ", "じゆうじ"] },
-    { "groupName": "血液型", "words": ["えー", "びー", "おー", "えーびー"] },
-    { "groupName": "四国", "words": ["かがわ", "えひめ", "とくしま", "こうち"] },
-    { "groupName": "日本四島", "words": ["ほつかいどう", "ほんしゆう", "しこく", "きゆうしゆう"] },
-    { "groupName": "都道府県", "words": ["と", "どう", "ふ", "けん"] },
-    { "groupName": "トランプ", "words": ["だいや", "だいやもんど", "すぺーど", "はーと", "くらぶ", "くろーばー"] },
-    { "groupName": "トランプ", "words": ["えふだ", "じやつく", "くいーん", "きんぐ", "じよーかー"] },
-    { "groupName": "トランプ", "words": ["えふだ", "じやつく", "くいーん", "きんぐ"] },
-    { "groupName": "トランプ", "words": ["しちならべ", "しんけいすいじやく", "ばばぬき", "ぽーかー", "だいふごう", "すぴーど"] },
-    { "groupName": "五感", "words": ["しかく", "ちようかく", "しよつかく", "きゆうかく", "みかく"] },
-    { "groupName": "五感が知覚する", "words": ["ひかり", "おと", "あじ", "かおり"] },
-    { "groupName": "天気", "words": ["はれ", "くもり", "あめ", "ゆき"] },
-    { "groupName": "天気", "words": ["みざる", "きかざる", "いわざる"] },
-    { "groupName": "変体", "words": ["おたまじゃくし", "かえる", "ひよこ", "にわとり", "やご", "とんぼ"] },
-    { "groupName": "5W", "words": ["どこ", "いつ", "だれ", "なに", "なぜ"] },
-    { "groupName": "料理のさしすせそ", "words": ["さとう", "しお", "す", "しようゆ", "みそ"] },
-    { "groupName": "五教科", "words": ["こくご", "さんすう", "すうがく", "りか", "しやかい", "えいご"] },
-    { "groupName": "その他教科", "words": ["びじゆつ", "たいいく", "ずこう", "どうとく", "かていか"] },
-    { "groupName": "中央とっても意味同じ意味", "words": ["き(生き物)", "れ(流れ星)", "い(笑い顔)", "べ(食べ物)"] },
-    { "groupName": "指", "words": ["おや", "ひとさし", "なか", "くすり", "こ"] },
-    { "groupName": "折", "words": ["じゆう", "きつね", "でんわ"] },
-    { "groupName": "何日前、後", "words": ["おととい", "きのう", "きよう", "あした", "あさつて"] },
-    { "groupName": "何年前、何年後", "words": ["おととし", "きよねん", "ことし", "らいねん", "さらいねん"] },
-    { "groupName": "曜日", "words": ["げつ", "か", "すい", "もく", "きん", "ど", "にち"] },
-    { "groupName": "曜日", "words": ["つき", "ひ", "みず", "き", "かね", "つち", "ひ"] },
-    { "groupName": "鳴き声", "words": ["かーかー", "もーもー", "めーめー", "ちゆーちゆー", "わんわん", "にやーにやー", "こんこん", "ほーほー", "ぽつぽー", "こけこつこー", "ぴよぴよ", "ぶーぶー"] },
-    { "groupName": "かみ", "words": ["ごつど", "ぺーぱー", "へあー"] },
-    { "groupName": "音階", "words": ["ど", "れ", "み", "ふあ", "そ", "ら", "し"] },
-    { "groupName": "音階", "words": ["は", "に", "ほ", "へ", "と", "い", "ろ"] },
-    { "groupName": "ドレミ歌", "words": ["どーなつ", "れもん", "みんな", "ふあいと", "あおいそら", "らつぱ", "しあわせ"] },
-    { "groupName": "虹", "words": ["あか", "だいだい", "き", "みどり", "あお", "あい", "むらさき"] },
-    { "groupName": "虹", "words": ["せき", "とう", "おう", "りよく", "せい", "らん", "し"] },
-    { "groupName": "カラー", "words": ["れつど", "おれんじ", "いえろー", "ぐりーん", "ぶるー", "ぱーぷる", "ぶらつく", "ほわいと", "ぐれー", "ぴんく"] },
-    { "groupName": "色", "words": ["あか", "だいだい", "き", "みどり", "あお", "むらさき", "くろ", "しろ", "はい", "もも"] },
-    { "groupName": "チューリップ", "words": ["あか", "しろ", "きいろ"] },
-    { "groupName": "デンデンムシ", "words": ["つの", "やり", "めだま"] },
-    { "groupName": "ジャンプ", "words": ["ほつぷ", "すてつぷ", "じやんぷ"] },
-    { "groupName": "バスケ", "words": ["ぱす", "どりぶる", "しゆーと"] },
-    { "groupName": "真", "words": ["まっさお", "まっか", "まっくろ", "まっしろ", "まっきいろ"] },
-    { "groupName": "惑星", "words": ["すいせい", "きんせい", "ちきゆう", "かせい", "もくせい", "どせい", "てんのうせい", "かいおうせい"] },
-    { "groupName": "惑星", "words": ["わくせい", "えいせい", "こうせい"] },
-    { "groupName": "十二支", "words": ["ね（ねずみ）", "うし", "とら", "う（うさぎ）", "たつ", "み（へび）", "うま", "ひつじ", "さる", "とり", "いぬ", "い（いのしし）"] },
-    { "groupName": "十二星座", "words": ["おひつじ", "おうし", "ふたご", "かに", "しし", "おとめ", "てんびん", "さそり", "いて", "やぎ", "みずがめ", "うお"] },
-    { "groupName": "君が代", "words": ["きみがよはちよにやちよにさざれいしのいわおとなりてこけのむすまで"] },
-    { "groupName": "日付", "words": ["ついたち", "ふつか", "みつか", "よつか", "いつか", "むいか", "なのか", "ようか", "ここのか", "とおか", "はつか"] },
-    { "groupName": "アルファベット", "words": ["えー", "びー", "しー", "でいー", "いー", "えふ", "じー", "えいち", "あい", "じえい", "けー", "える", "えむ", "えぬ", "おー", "ぴー", "きゆー", "あーる", "えす", "ていー", "ゆー", "ぶい", "だぶりゆー", "えつくす", "わい", "ぜつと"] },
-    { "groupName": "九九言葉", "words": ["いんく", "にし", "にく", "さんご", "しさん", "しし", "しご", "ごさん", "ごご", "ろつく", "はっぱ", "くに", "くし"] },
-    { "groupName": "表彰台", "words": ["ふあーすと", "せかんど", "さーど"] },
-    { "groupName": "1～10", "words": ["いち", "に", "さん", "よん", "ご", "ろく", "なな", "はち", "きゆう", "じゆう"] },
-    { "groupName": "1～10", "words": ["わん", "つー", "すりー", "ふおー", "ふあいぶ", "しつくす", "せぶん", "えいと", "ないん", "てん"] },
-    { "groupName": "1～10", "words": ["ひとつ", "ふたつ", "みつつ", "よつつ", "いつつ", "むつつ", "ななつ", "やつつ", "ここのつ"] },
-    { "groupName": "分数", "words": ["ぶんの", "ぶんぼ", "ぶんし"] },
-    { "groupName": "人数", "words": ["ひとり", "ふたり", "さんにん"] },
-    { "groupName": "10倍数", "words": ["いち", "じゆう", "ひやく", "せん", "まん", "おく", "ちよう", "けい", "がい"] },
-    { "groupName": "かける", "words": ["あいろん", "ぞうきん", "そうじき", "もっぷ", "かぎ", "はんがー", "めがね", "でんわ", "はしご", "ふとん"] },
-    { "groupName": "家族", "words": ["ちち", "はは", "まま", "ぱぱ"] },
-    { "groupName": "家族", "words": ["いもうと", "おとうと", "あに", "あね"] },
-    { "groupName": "家族", "words": ["きようだい", "しまい"] },
-    { "groupName": "家族", "words": ["こ", "まご"] },
-    { "groupName": "家族", "words": ["まま", "ぱぱ"] },
-    { "groupName": "?", "words": ["はてな", "ぎもんふ", "くえすちよんまーく"] },
-    { "groupName": "形", "words": ["すくえあ", "さーくる", "とらいあんぐる"] },
-    { "groupName": "形", "words": ["しかく", "まる", "さんかく"] },
-    { "groupName": "形", "words": ["つき", "ほし"] },
-    { "groupName": "形", "words": ["しかく", "すくえあ", "せいほうけい"] },
-    { "groupName": "形", "words": ["まる", "ばつ"] },
-    { "groupName": "時", "words": ["かこ", "げんざい", "みらい"] },
-    { "groupName": "特定衣服", "words": ["ねまき", "みずぎ", "ゆかた", "せいふく"] },
-    { "groupName": "自分自身", "words": ["あ(頭)", "さ(最初)", "は(始メ)", "ん(ド真ン中)", "う(中心、中央)", "な(オ腹)", "ご(最後)", "り(終ワリ、オ尻)", "ぽ(尻尾)"] },
-    { "groupName": "1/2", "words": ["ささ", "しし", "ちち(ぱぱ)", "なな", "はは(まま)", "みみ", "もも"] },
-    { "groupName": "チェス", "words": ["きんぐ", "くいーん", "るーく", "びしよつぷ", "ぽーん", "ないと"] },
-    { "groupName": "旧暦", "words": ["むつき", "きさらぎ", "やよい", "うづき", "さつき", "みなづき", "ふみづき", "はづき", "ながつき", "かんなづき", "しもつき", "しわす"] },
-    { "groupName": "祝日", "words": ["がんじつ", "せいじんのひ", "けんこくきねんのひ(けんこくきねんび)", "てんのうたんじょうび", "しゅんぶんのひ", "しょうわのひ", "けんぽうきねんび", "みどりのひ", "こどものひ", "うみのひ", "やまのひ", "けいろうのひ", "しゅうぶんのひ", "すぽーつのひ", "ぶんかのひ", "きんろうかんしゃのひ"] },
-    { "groupName": "日", "words": ["ばれんたいんでー", "ほわいとでー"] },
-    { "groupName": "元号", "words": ["めいじ", "たいしよう", "しようわ", "へいせい", "れいわ"] },
-    { "groupName": "都道府県", "words": ["ほつかいどう", "あおもり", "いわて", "みやぎ", "あきた", "やまがた", "ふくしま", "いばらき", "とちぎ", "ぐんま", "さいたま", "ちば", "とうきよう", "かながわ", "にいがた", "とやま", "いしかわ", "ふくい", "やまなし", "ながの", "ぎふ", "しずおか", "あいち", "みえ", "しが", "きようと", "おおさか", "ひようご", "なら", "わかやま", "とつとり", "しまね", "おかやま", "ひろしま", "やまぐち", "とくしま", "かがわ", "えひめ", "こうち", "ふくおか", "さが", "ながさき", "くまもと", "おおいた", "みやざき", "かごしま", "おきなわ"] },
-    { "groupName": "地方", "words": ["ほつかいどう", "とうほく", "かんとう", "ちゆうぶ", "きんき", "ちゆうごく", "しこく", "きゆうしゆう"] },
-    { "groupName": "違県庁所在地", "words": ["さつぽろ", "もりおか", "せんだい", "みと", "うつのみや", "まえばし", "さいたま", "よこはま", "こうふ", "かなざわ", "なごや", "おおつ", "つ", "こうべ", "まつえ", "たかまつ", "まつやま", "なは"] },
-    { "groupName": "単位", "words": ["ほん", "だい", "まい", "けん", "きやく", "とう", "わ", "こ", "ひき", "たま", "そく", "ちよう", "てき", "く", "つう", "りよう", "き", "せき", "ちやく", "きん", "ふさ", "かん", "はい"] },
-    { "groupName": "部首", "words": ["にんべん", "にすい", "うかんむり", "おおざと", "こざと", "りつとう", "ぎようにんべん", "くさかんむり", "くにがまえ", "さんずい", "しかばね", "てへん", "まだれ", "がんだれ", "やまいだれ", "れつか（れんが）", "こころ", "けものへん", "しめすへん", "あなかんむり", "ころもへん", "しんによう（しんにゆう）", "そうによう", "もんがまえ", "おおがい", "あめかんむり", "たけかんむり", "りつしんべん", "ごんべん"] },
-    { "groupName": "亻ﾝ氵礻", "words": ["い", "ん", "し", "ね"] },
-    { "groupName": "乗物", "words": ["えき", "くうこう", "みなと"] },
-    { "groupName": "乗物", "words": ["どうろ", "せんろ", "かつそうろ"] },
-    { "groupName": "乗物", "words": ["ほこう", "そうこう", "ひこう"] },
-    { "groupName": "○○モノ", "words": ["いきもの", "たべもの", "のみもの", "のりもの"] },
-    { "groupName": "乗り物", "words": ["でんしや", "ひこうき", "ふね"] },
-    { "groupName": "乗り物", "words": ["きゆうきゆうしや", "しようぼうしや", "ぱとかー"] },
-    { "groupName": "交通", "words": ["おうだんほどう", "ほどうきよう"] },
-    { "groupName": "大小", "words": ["だいず", "あずき"] },
-    { "groupName": "公園", "words": ["ぶらんこ", "すべりだい", "しーそー"] },
-    { "groupName": "布団", "words": ["ふとん", "まくら"] },
-    { "groupName": "布団", "words": ["かけぶとん", "しきぶとん"] },
-    { "groupName": "似", "words": ["いか", "たこ"] },
-    { "groupName": "似", "words": ["うに", "くり"] },
-    { "groupName": "似", "words": ["ほし", "ひとで"] },
-    { "groupName": "似", "words": ["おうとつ", "でこぼこ"] },
-    { "groupName": "似", "words": ["ぴあす", "いやりんぐ"] },
-    { "groupName": "似", "words": ["おうかん", "くらうん"] },
-    { "groupName": "似", "words": ["はたけ", "たんぼ"] },
-    { "groupName": "似", "words": ["いんく", "ぺんき", "すみ"] },
-    { "groupName": "似", "words": ["ぷりん", "かすてら"] },
-    { "groupName": "似", "words": ["いやほん", "へつどほん", "みみせん"] },
-    { "groupName": "似", "words": ["ばんざい", "さかだち"] },
-    { "groupName": "似", "words": ["けんだま", "ぼうりんぐ"] },
-    { "groupName": "似", "words": ["かくれんぼ", "だるまさんがころんだ"] },
-    { "groupName": "似", "words": ["かさ", "はんがー"] },
-    { "groupName": "似", "words": ["かがみ", "がらす"] },
-    { "groupName": "似", "words": ["つまさき", "かかと"] },
-    { "groupName": "似", "words": ["らいく", "らぶ"] },
-    { "groupName": "似", "words": ["めぐすり", "なみだ"] },
-    { "groupName": "似", "words": ["りんご", "なし", "さくらんぼ"] },
-    { "groupName": "似", "words": ["かつぱまき", "てつかまき"] },
-    { "groupName": "似", "words": ["ふりよく", "じゆうりよく", "じりよく"] },
-    { "groupName": "似", "words": ["はんばーぐ", "はんばーがー"] },
-    { "groupName": "似", "words": ["あるみかん", "すちーるかん"] },
-    { "groupName": "似", "words": ["かぶ", "だいこん"] },
-    { "groupName": "似", "words": ["さんぐらす", "めがね"] },
-    { "groupName": "似", "words": ["まる", "ばつ", "おー", "えつくす"] },
-    { "groupName": "似", "words": ["ぷらす", "まいなす", "じゆう", "いち"] },
-    { "groupName": "似", "words": ["ろ", "くち", "しかく"] },
-    { "groupName": "似", "words": ["とびら", "どあ", "と"] },
-    { "groupName": "似", "words": ["かれい", "ひらめ"] },
-    { "groupName": "似", "words": ["はし", "とんねる", "ほどうきよう"] },
-    { "groupName": "似", "words": ["ぱぷりか", "ぴーまん"] },
-    { "groupName": "似", "words": ["おでん", "だんご", "やきとり"] },
-    { "groupName": "似", "words": ["ぶろつこりー", "かりふらわー"] },
-    { "groupName": "似", "words": ["きゆーぶ", "だいす", "ぶろつく", "りつぽうたい"] },
-    { "groupName": "似", "words": ["りーち", "びんご"] },
-    { "groupName": "似", "words": ["ぴーち", "はーと"] },
-    { "groupName": "似", "words": ["ばくだん", "ふうせん"] },
-    { "groupName": "似", "words": ["なか(中)", "くし(串)"] },
-    { "groupName": "似", "words": ["いご", "おせろ"] },
-    { "groupName": "似", "words": ["もざいく", "ぼかし"] },
-    { "groupName": "似", "words": ["うきわ", "ふらふーぷ"] },
-    { "groupName": "似", "words": ["おんぶ", "だつこ"] },
-    { "groupName": "似", "words": ["えすかれーたー", "えれべーたー"] },
-    { "groupName": "似", "words": ["はせん", "なみせん"] },
-    { "groupName": "似", "words": ["しようちくばい", "しようちゆうだい"] },
-    { "groupName": "似", "words": ["ういんく", "まばたき"] },
-    { "groupName": "似", "words": ["ちへいせん", "すいへいせん"] },
-    { "groupName": "似", "words": ["ますたーど", "かすたーど"] },
-    { "groupName": "似", "words": ["まよねーず", "けちやつぷ"] },
-    { "groupName": "似", "words": ["はんまー", "かなづち", "とんかち"] },
-    { "groupName": "似", "words": ["すとろー", "まどらー"] },
-    { "groupName": "似", "words": ["ふじさん", "ぷりん"] },
-    { "groupName": "似", "words": ["ゆきだるま", "かがみもち"] },
-    { "groupName": "似", "words": ["しめすへん", "ころもへん"] },
-    { "groupName": "似", "words": ["しーそー", "てんびん"] },
-    { "groupName": "対義語", "words": ["おもて", "うら"] },
-    { "groupName": "対義語", "words": ["まえまわり", "さかあがり"] },
-    { "groupName": "対義語", "words": ["おおもじ", "こもじ"] },
-    { "groupName": "対義語", "words": ["あたらしい", "ふるい"] },
-    { "groupName": "対義語", "words": ["あかるい", "くらい"] },
-    { "groupName": "対義語", "words": ["あまい", "からい", "にがい"] },
-    { "groupName": "対義語", "words": ["おおい", "すくない"] },
-    { "groupName": "対義語", "words": ["おおきい", "ちいさい"] },
-    { "groupName": "対義語", "words": ["おそい", "はやい"] },
-    { "groupName": "対義語", "words": ["だーく", "へびー", "れふと"] },
-    { "groupName": "対義語", "words": ["かたい", "やわらかい"] },
-    { "groupName": "対義語", "words": ["せまい", "ひろい"] },
-    { "groupName": "対義語", "words": ["やすい", "たかい"] },
-    { "groupName": "対義語", "words": ["やさしい", "むずかしい"] },
-    { "groupName": "対義語", "words": ["あくま", "てんし"] },
-    { "groupName": "対義語", "words": ["いど", "けいど"] },
-    { "groupName": "対義語", "words": ["いん", "あうと"] },
-    { "groupName": "対義語", "words": ["ぶんかぶ", "うんどうぶ"] },
-    { "groupName": "対義語", "words": ["いらすと", "しやしん"] },
-    { "groupName": "対義語", "words": ["いらすと", "てきすと"] },
-    { "groupName": "対義語", "words": ["あさやけ", "ゆうやけ"] },
-    { "groupName": "対義語", "words": ["ひので", "ひのいり"] },
-    { "groupName": "対義語", "words": ["りりく", "ちやくりく"] },
-    { "groupName": "対義語", "words": ["せんこう", "こうこう"] },
-    { "groupName": "対義語", "words": ["こうげき", "ぼうぎよ"] },
-    { "groupName": "対義語", "words": ["すいちよく", "へいこう"] },
-    { "groupName": "対義語", "words": ["ぐつど", "ばつど"] },
-    { "groupName": "対義語", "words": ["うく", "しずむ"] },
-    { "groupName": "対義語", "words": ["ごぜん", "ごご"] },
-    { "groupName": "対義語", "words": ["てがた", "あしあと"] },
-    { "groupName": "対義語", "words": ["じてん", "こうてん"] },
-    { "groupName": "対義語", "words": ["きみ", "しろみ"] },
-    { "groupName": "対義語", "words": ["しろみ", "あかみ"] },
-    { "groupName": "対義語", "words": ["もんだい", "こたえ", "かいとう"] },
-    { "groupName": "対義語", "words": ["でじたる", "あなろぐ"] },
-    { "groupName": "対義語", "words": ["えーえむ", "ぴーえむ"] },
-    { "groupName": "対義語", "words": ["おん", "おふ"] },
-    { "groupName": "対義語", "words": ["あるかりせい", "さんせい"] },
-    { "groupName": "対義語", "words": ["さんせい", "はんたい"] },
-    { "groupName": "対義語", "words": ["おとな", "こども"] },
-    { "groupName": "対義語", "words": ["いりぐち", "でぐち"] },
-    { "groupName": "対義語", "words": ["くろうと", "しろうと"] },
-    { "groupName": "対義語", "words": ["あくせる", "ぶれーき"] },
-    { "groupName": "対義語", "words": ["ぼけ", "つつこみ"] },
-    { "groupName": "対義語", "words": ["すたーと", "ごーる"] },
-    { "groupName": "対義語", "words": ["ふりだし", "あがり"] },
-    { "groupName": "対義語", "words": ["さいせい", "ていし"] },
-    { "groupName": "対義語", "words": ["おす", "めす"] },
-    { "groupName": "対義語", "words": ["おつと", "つま"] },
-    { "groupName": "対義語", "words": ["おとこ", "おんな"] },
-    { "groupName": "対義語", "words": ["だんし", "じよし"] },
-    { "groupName": "対義語", "words": ["おす", "ひく"] },
-    { "groupName": "対義語", "words": ["ぽーく", "びーふ"] },
-    { "groupName": "対義語", "words": ["あるく", "はしる"] },
-    { "groupName": "対義語", "words": ["たす", "ひく"] },
-    { "groupName": "対義語", "words": ["はいる", "でる"] },
-    { "groupName": "対義語", "words": ["ふえる", "へる"] },
-    { "groupName": "対義語", "words": ["へぶん", "へる"] },
-    { "groupName": "対義語", "words": ["うそ", "ほんとう"] },
-    { "groupName": "対義語", "words": ["くうふく", "まんぷく"] },
-    { "groupName": "対義語", "words": ["かたみち", "おうふく"] },
-    { "groupName": "対義語", "words": ["しはつ", "しゆうでん"] },
-    { "groupName": "対義語", "words": ["いせん", "けいせん"] },
-    { "groupName": "対義語", "words": ["ふかい", "あさい"] },
-    { "groupName": "対義語", "words": ["つよい", "よわい"] },
-    { "groupName": "対義語", "words": ["ながい", "みじかい"] },
-    { "groupName": "対義語", "words": ["ちかい", "とおい"] },
-    { "groupName": "対義語", "words": ["かるい", "おもい"] },
-    { "groupName": "対義語", "words": ["おーぷん", "くろーず"] },
-    { "groupName": "対義語", "words": ["ねる", "おきる"] },
-    { "groupName": "対義語", "words": ["あつい", "うすい", "つめたい", "さむい"] },
-    { "groupName": "対義語", "words": ["らがん", "めがね"] },
-    { "groupName": "対義語", "words": ["ぷらす", "まいなす"] },
-    { "groupName": "対義語", "words": ["ぶんぼ", "ぶんし"] },
-    { "groupName": "対義語", "words": ["ろんぐ", "しよーと"] },
-    { "groupName": "対義語", "words": ["はい", "いいえ"] },
-    { "groupName": "対義語", "words": ["いえす", "のー"] },
-    { "groupName": "対義語", "words": ["たかい", "ひくい"] },
-    { "groupName": "対義語", "words": ["はい", "ろー"] },
-    { "groupName": "対義語", "words": ["ふとい", "ほそい"] },
-    { "groupName": "対義語", "words": ["こい", "うすい"] },
-    { "groupName": "対義語", "words": ["のぼる", "くだる"] },
-    { "groupName": "対義語", "words": ["あがる", "さがる"] },
-    { "groupName": "対義語", "words": ["たいへいよう", "たいせいよう"] },
-    { "groupName": "対義語", "words": ["おーぷにんぐ", "えんでいんぐ"] },
-    { "groupName": "対義語", "words": ["さーぶ", "れしーぶ"] },
-    { "groupName": "対義語", "words": ["やまおり", "たにおり"] },
-    { "groupName": "対義語", "words": ["すかい", "しー"] },
-    { "groupName": "対義語", "words": ["おう", "にげる"] },
-    { "groupName": "対義語", "words": ["おんよみ", "くんよみ"] },
-    { "groupName": "対義語", "words": ["もーにんぐ", "いぶにんぐ"] },
-    { "groupName": "数の性質", "words": ["ぐうすう", "きすう", "そすう"] },
-    { "groupName": "火山灰 炭火", "words": ["かざんばい", "すみび"] },
-    { "groupName": "羽音 翌日", "words": ["はおと", "よくじつ"] },
-    { "groupName": "口を下につけても1文字漢字", "words": ["ご(吾)", "ふ(否)","し(吉)", "き(杏)"] },
-    { "groupName": "日をつけても2文字漢字", "words": ["つき(明)", "おと(暗)","てら(時)", "あお(晴)"] },
-    { "groupName": "水筒 弁当", "words": ["すいとう", "べんとう"] },
-    { "groupName": "羽音 翌日", "words": ["へた", "ほね","たね", "つまようじ","くし","わりばし"] },
-    { "groupName": "しろいかみ", "words": ["しらが", "はくし"] },
-    {
-        "groupName": "時間",
-        "words": ["SECOND", "MINUTE", "HOUR", "DAY", "WEEK", "YEAR"]
-    },
-    {
-        "groupName": "朝夜",
-        "words": ["MORNING", "EVENING"]
-    },
-    {
-        "groupName": "食",
-        "words": ["BREAKFAST", "LUNCH", "DINNER"]
-    },
-    {
-        "groupName": "模様",
-        "words": ["STRIPE", "BORDER", "CHECK"]
-    },
-    {
-        "groupName": "大きさ",
-        "words": ["S", "M", "L"]
-    },
-    {
-        "groupName": "月",
-        "words": ["JANUARY", "FEBRUARY", "MARCH", "APRIL", "MAY", "JUNE", "JULY", "AUGUST", "SEPtEMBER", "OCTOBER", "NOVEMBER", "DECEMBER"]
-    },
-    {
-        "groupName": "食器",
-        "words": ["KNIFE", "FORK", "SPOON"]
-    },
-    {
-        "groupName": "勝敗",
-        "words": ["LOSE", "WIN", "DRAW"]
-    },
-    {
-        "groupName": "金銀銅",
-        "words": ["GOLD", "SILVER", "BRONZE"]
-    },
-    {
-        "groupName": "数",
-        "words": ["SINGLE", "DOUBLE", "TRIPLE"]
-    },
-    {
-        "groupName": "四季",
-        "words": ["SPRING", "SUMMER", "AUTUMN", "WINTER"]
-    },
-    {
-        "groupName": "花鳥風月",
-        "words": ["FROWER", "BIRD", "WIND", "MOON"]
-    },
-    {
-        "groupName": "方角",
-        "words": ["WEST", "EAST", "NORTH", "SOUTH"]
-    },
-    {
-        "groupName": "方向",
-        "words": ["LEFT", "RIGHT", "UP", "DOWN"]
-    },
-    {
-        "groupName": "血液型",
-        "words": ["A", "B", "O", "AB"]
-    },
-    {
-        "groupName": "スート",
-        "words": ["DIAMOND", "SPADE", "HEART"]
-    },
-    {
-        "groupName": "トランプ",
-        "words": ["ACE", "JACK", "QUEEN", "KING", "JOKER"]
-    },
-    {
-        "groupName": "光 音",
-        "words": ["LIGHT", "SOUND"]
-    },
-    {
-        "groupName": "5W1H",
-        "words": ["WHERE", "WHEN", "WHO", "WHAT", "HOW", "WHY"]
-    },
-    {
-        "groupName": "かみ",
-        "words": ["GOD", "PAPER", "HAIR"]
-    },
-    {
-        "groupName": "序数",
-        "words": ["FIRST", "SECOND", "THIRD"]
-    },
-    {
-        "groupName": "数",
-        "words": ["ONE", "TWO", "THREE", "FOUR", "FIVE", "SIX", "SEVEN", "EIGHT", "NINE", "TEN"]
-    },
-    {
-        "groupName": "父母",
-        "words": ["FATHER", "MOTHER"]
-    },
-    {
-        "groupName": "きょうだい",
-        "words": ["BROTHER", "SISTER"]
-    },
-    {
-        "groupName": "形",
-        "words": ["SQUARE", "CIRCLE", "TRIANGLE"]
-    },
-    {
-        "groupName": "ねずみ",
-        "words": ["RAT", "MOUSE"]
-    },
-    {
-        "groupName": "家",
-        "words": ["HOME", "HOUSE"]
-    },
-    {
-        "groupName": "あめ",
-        "words": ["CANDY", "RAIN"]
-    },
-    {
-        "groupName": "くも",
-        "words": ["CLOUD", "SPIDER"]
-    },
-    {
-        "groupName": "しろ",
-        "words": ["WHITE", "CASTLE"]
-    },
-    {
-        "groupName": "±",
-        "words": ["PLUS", "MINUS"]
-    },
-    {
-        "groupName": "立方体",
-        "words": ["CUBE", "DICE"]
-    },
-    {
-        "groupName": "対義語",
-        "words": ["GOOD", "BAD"]
-    },
-    {
-        "groupName": "対義語",
-        "words": ["QUESTION", "ANSWER"]
-    },
-    {
-        "groupName": "対義語",
-        "words": ["AM", "PM"]
-    },
-    {
-        "groupName": "対義語",
-        "words": ["ON", "OFF"]
-    },
-    {
-        "groupName": "対義語",
-        "words": ["ADULT", "CHILD"]
-    },
-    {
-        "groupName": "対義語",
-        "words": ["START", "GOAL"]
-    },
-    {
-        "groupName": "対義語",
-        "words": ["PULL", "PUSH"]
-    },
-    {
-        "groupName": "対義語",
-        "words": ["WALK", "RUN"]
-    },
-    {
-        "groupName": "対義語",
-        "words": ["OPEN", "CLOSE"]
-    },
-    {
-        "groupName": "対義語",
-        "words": ["PLUS", "MINUS"]
-    },
-    {
-        "groupName": "対義語",
-        "words": ["LONG", "SHORT"]
-    },
-    {
-        "groupName": "対義語",
-        "words": ["YES", "NO"]
-    },
-    {
-        "groupName": "対義語",
-        "words": ["HIGH", "LOW"]
-    },
-    {
-        "groupName": "対義語",
-        "words": ["SKY", "SEA"]
-    },
-    {
-        "groupName": "対義語",
-        "words": ["MORNING", "EVENING"]
-    },
-    {
-        "groupName": "桃茶金",
-        "words": ["PINK", "PEACH", "BROWN", "TEA", "GOLD", "MONEY"]
-    },
-    {
-        "groupName": "好き",
-        "words": ["LIKE", "LOVE"]
-    }
+    // デフォルトデータ（初期状態）
+    // もし間違って消しても「初期データに戻す」でこれが復活します
+    const defaultData = [
+        { "groupName": "四季", "words": ["はる", "なつ", "あき", "ふゆ"] },
+        { "groupName": "時間", "words": ["SECOND", "MINUTE", "HOUR", "DAY", "WEEK", "YEAR"] },
+        { "groupName": "朝夜", "words": ["MORNING", "EVENING"] },
+        { "groupName": "食", "words": ["BREAKFAST", "LUNCH", "DINNER"] },
+        // ... (ここに以前の長いデータを入れておくことも可能ですが、
+        // 今回はシンプルにするため、必要であれば以前のデータをここにコピペしてください。
+        // 今は空の状態からスタートでも、ご自身で追加していけばOKです)
     ];
 
-    // 濁点・半濁点を取り除く関数
-    function toSeion(str) {
-        return str.normalize('NFD').replace(/[\u3099\u309A]/g, "");
+    // アプリケーションで使用するデータ
+    let appData = [];
+
+    // 起動時の処理
+    window.onload = function() {
+        loadData();
+        search(); // 初回検索（もし入力があれば）
+    };
+
+    // データの読み込み（Local Storage -> 変数）
+    function loadData() {
+        const storedData = localStorage.getItem('wordSearchData');
+        if (storedData) {
+            appData = JSON.parse(storedData);
+        } else {
+            // 保存データがない場合はデフォルトデータを使用
+            appData = JSON.parse(JSON.stringify(defaultData));
+        }
+        updateManageList();
     }
 
+    // データの保存（変数 -> Local Storage）
+    function saveData() {
+        localStorage.setItem('wordSearchData', JSON.stringify(appData));
+        updateManageList();
+        search(); // 保存したら検索結果も更新
+        alert("保存しました！");
+    }
+
+    // 新しいグループを追加
+    function addNewGroup() {
+        const name = document.getElementById('newGroupName').value.trim();
+        const wordsStr = document.getElementById('newGroupWords').value.trim();
+
+        if (!name || !wordsStr) {
+            alert("語群名と単語を入力してください");
+            return;
+        }
+
+        // 全角スペースや読点を区切り文字として配列化
+        const words = wordsStr.split(/[\s,、]+/).filter(w => w.length > 0);
+
+        if (words.length === 0) {
+            alert("有効な単語がありません");
+            return;
+        }
+
+        // データ追加
+        appData.push({
+            groupName: name,
+            words: words
+        });
+
+        // フォームをクリア
+        document.getElementById('newGroupName').value = "";
+        document.getElementById('newGroupWords').value = "";
+
+        saveData();
+    }
+
+    // グループの削除
+    function deleteGroup(index) {
+        if (confirm("この語群を削除しますか？")) {
+            appData.splice(index, 1);
+            saveData();
+        }
+    }
+
+    // 初期化
+    function resetData() {
+        if (confirm("全ての登録データを削除し、初期状態に戻しますか？")) {
+            appData = JSON.parse(JSON.stringify(defaultData));
+            saveData();
+        }
+    }
+
+    // 管理画面のリスト更新
+    function updateManageList() {
+        const listEl = document.getElementById('dataList');
+        const countEl = document.getElementById('dataCount');
+        
+        listEl.innerHTML = "";
+        countEl.innerText = appData.length;
+
+        // 新しいものが上に来るように逆順で表示
+        appData.slice().reverse().forEach((group, revIndex) => {
+            const realIndex = appData.length - 1 - revIndex;
+            
+            const div = document.createElement('div');
+            div.className = 'data-item';
+            div.innerHTML = `
+                <div class="data-content">
+                    <strong>${group.groupName}</strong>
+                    <span class="data-sub">${group.words.join(' / ')}</span>
+                </div>
+                <button class="btn btn-delete" onclick="deleteGroup(${realIndex})">削除</button>
+            `;
+            listEl.appendChild(div);
+        });
+    }
+
+    // 管理画面の表示切替
+    function toggleManageArea() {
+        const area = document.getElementById('manageArea');
+        area.style.display = (area.style.display === 'block') ? 'none' : 'block';
+    }
+
+    // 文字の正規化（検索用）
+    function normalizeString(str) {
+        let res = str.normalize('NFD').replace(/[\u3099\u309A]/g, "");
+        const smallToLarge = {
+            'っ': 'つ', 'ゃ': 'や', 'ゅ': 'ゆ', 'ょ': 'よ',
+            'ぁ': 'あ', 'ぃ': 'い', 'ぅ': 'う', 'ぇ': 'え', 'ぉ': 'お'
+        };
+        return res.split('').map(char => smallToLarge[char] || char).join('');
+    }
+
+    // 検索処理
     function search() {
         const input = document.getElementById('searchInput').value.trim();
         const resultArea = document.getElementById('resultArea');
         const resultCount = document.getElementById('resultCount');
-        const ignoreDakuten = document.getElementById('ignoreDakuten').checked;
+        const looseMode = document.getElementById('looseMode').checked;
         
         resultArea.innerHTML = "";
 
         if (!input) {
-            resultCount.innerText = "拗音(っゃゅょ等)には対応していません。大文字にして入力してください。";
+            resultCount.innerText = "文字を入力してください";
             return;
         }
 
         const inputChars = input.split("");
-        
-        // 検索結果を格納する配列
         let perfectMatches = [];
         let nearMatches = [];
 
-        myDataGroups.forEach(group => {
+        appData.forEach(group => {
             const combinedText = group.words.join("");
             
-            // 含まれていない文字を探す
             const missingChars = inputChars.filter(originalChar => {
                 let targetChar = originalChar.toLowerCase();
                 let targetTextToSearch = combinedText.toLowerCase();
 
-                // チェックボックスがONの場合、両方を清音化して比較
-                if (ignoreDakuten) {
-                    targetChar = toSeion(originalChar);
-                    targetTextToSearch = toSeion(combinedText);
+                if (looseMode) {
+                    targetChar = normalizeString(targetChar);
+                    targetTextToSearch = normalizeString(targetTextToSearch);
                 }
                 
                 return !targetTextToSearch.includes(targetChar);
             });
             
-            // ミスが0文字（完全一致）
             if (missingChars.length === 0) {
                 perfectMatches.push({ group: group, missing: [] });
-            } 
-            // ミスが1文字（惜しい）
-            else if (missingChars.length === 1) {
+            } else if (missingChars.length === 1) {
                 nearMatches.push({ group: group, missing: missingChars });
             }
         });
 
-        // ★ソート処理：単語数が少ない順
+        // ソート：単語数が少ない順
         perfectMatches.sort((a, b) => a.group.words.length - b.group.words.length);
         nearMatches.sort((a, b) => a.group.words.length - b.group.words.length);
 
-        // 結果の表示処理（完全一致 → 惜しい の順）
         const allMatches = [...perfectMatches, ...nearMatches];
 
         allMatches.forEach(match => {
             const group = match.group;
             const isPerfect = match.missing.length === 0;
-            
             const card = document.createElement('div');
             card.className = `group-card ${isPerfect ? 'match-perfect' : 'match-near'}`;
-            
             const badgeClass = isPerfect ? 'badge-perfect' : 'badge-near';
             const badgeText = isPerfect ? '揃いました！' : 'あと1文字！';
-            
             const wordsHtml = group.words.map(w => `<span class="word-item">${w}</span>`).join("");
             
             let html = `
@@ -780,18 +294,14 @@
             if (!isPerfect) {
                 html += `<div class="missing-info">※ 「${match.missing[0]}」が含まれていません</div>`;
             }
-            
             card.innerHTML = html;
             resultArea.appendChild(card);
         });
 
         if (allMatches.length > 0) {
-            resultCount.innerHTML = `
-                完全一致: <strong style="color:#27ae60">${perfectMatches.length}件</strong> / 
-                惜しい: <strong style="color:#e67e22">${nearMatches.length}件</strong>
-            `;
+            resultCount.innerHTML = `完全一致: <strong style="color:#27ae60">${perfectMatches.length}件</strong> / 惜しい: <strong style="color:#e67e22">${nearMatches.length}件</strong>`;
         } else {
-            resultCount.innerText = "一致する語群はありません（2文字以上足りません）";
+            resultCount.innerText = "条件に合う語群が見つかりませんでした。";
             resultArea.innerHTML = `<div class="no-result">条件に合う語群が見つかりませんでした。</div>`;
         }
     }
