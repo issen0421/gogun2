@@ -2,18 +2,28 @@
 const GAS_URL = "https://script.google.com/macros/s/AKfycbwjavHiBOUOYrA_WCq2lxuWtuOMpGWsc_D7MtMn0tgdVjTqE8m_7cbcguahrbkCEtd_Uw/exec"; 
 // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
 
-let appData = []; // 語群データ
-let dictStandard = []; // 日本語一般語.txt
-let dictPig = [];      // 豚辞書.txt
+let appData = []; 
+let dictStandard = []; 
+let dictPig = [];      
+let dictEnglish = [];  
+
+// モード管理
+let currentMode = 'gojuon'; 
+let activeLayout = []; 
+let selectedCells = []; 
+let customLayout = [];
 
 window.onload = function() {
-    loadData(); // 語群データ読み込み
-    loadAllDictionaries(); // 辞書ファイル読み込み
+    loadData(); 
+    loadTxtData(); 
     
     if (typeof KANJI_DATA !== 'undefined') {
         searchKanji();
     }
-    initGojuuonTable();
+    
+    // 初期化：五十音
+    activeLayout = GOJUON_LAYOUT;
+    initGrid('gojuonGrid', 'lineCanvasGojuon', GOJUON_LAYOUT);
 };
 
 // タブ切り替え
@@ -22,24 +32,146 @@ function switchTab(tabName) {
     document.querySelector(`.tab-btn[onclick="switchTab('${tabName}')"]`).classList.add('active');
     document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
     document.getElementById(`tab-${tabName}`).classList.add('active');
+
+    // モードに応じたリセット処理
+    if (tabName === 'gojuon') {
+        currentMode = 'gojuon';
+        activeLayout = GOJUON_LAYOUT;
+        resetSelection();
+    } else if (tabName === 'custom') {
+        currentMode = 'custom';
+        if (customLayout.length > 0) activeLayout = customLayout;
+        resetSelection();
+    } else if (tabName === 'redone') {
+        currentMode = 'redone';
+    }
 }
 
-// ------------------------------------
 // 共通ユーティリティ
-// ------------------------------------
 function hiraToKata(str) {
-    return str.replace(/[\u3041-\u3096]/g, function(match) {
-        var chr = match.charCodeAt(0) + 0x60;
-        return String.fromCharCode(chr);
-    });
+    return str.replace(/[\u3041-\u3096]/g, m => String.fromCharCode(m.charCodeAt(0) + 0x60));
 }
 function normalizeString(str) {
     let res = str.normalize('NFD').replace(/[\u3099\u309A]/g, "");
-    const smallToLarge = {
-        'っ':'つ', 'ゃ':'や', 'ゅ':'ゆ', 'ょ':'よ', 'ぁ':'あ', 'ぃ':'い', 'ぅ':'う', 'ぇ':'え', 'ぉ':'お'
-    };
+    res = res.toUpperCase();
+    const smallToLarge = { 'っ':'つ', 'ゃ':'や', 'ゅ':'ゆ', 'ょ':'よ', 'ぁ':'あ', 'ぃ':'い', 'ぅ':'う', 'ぇ':'え', 'ぉ':'お' };
     return res.split('').map(char => smallToLarge[char] || char).join('');
 }
+
+// ------------------------------------
+// 解き直し検索機能
+// ------------------------------------
+function searchRedone() {
+    const charFrom = document.getElementById('redoneFrom').value.trim();
+    const charTo = document.getElementById('redoneTo').value.trim();
+    const matchLastChar = document.getElementById('matchLastChar').checked; // ★追加
+    
+    const resultArea = document.getElementById('redoneResultArea');
+    const countEl = document.getElementById('redoneCount');
+    
+    resultArea.innerHTML = "";
+
+    if (!charFrom || !charTo) {
+        countEl.innerText = "変換元と変換先の文字を両方入力してください";
+        return;
+    }
+
+    if (appData.length === 0) {
+        countEl.innerText = "語群データを読み込み中です...";
+        return;
+    }
+
+    let foundPairs = [];
+
+    // 全語群データを走査
+    appData.forEach(group => {
+        const words = Array.isArray(group.words) ? group.words : [];
+        if (words.length < 2) return;
+
+        // 総当たりでペアチェック
+        for (let i = 0; i < words.length; i++) {
+            for (let j = 0; j < words.length; j++) {
+                if (i === j) continue;
+
+                const w1 = words[i];
+                const w2 = words[j];
+
+                let isMatch = false;
+                let idx1 = -1; // w1でのヒット位置
+                let idx2 = -1; // w2でのヒット位置
+
+                // 1. 通常の同じ位置チェック
+                const len = Math.min(w1.length, w2.length);
+                for (let k = 0; k < len; k++) {
+                    if (w1[k] === charFrom && w2[k] === charTo) {
+                        isMatch = true;
+                        idx1 = k;
+                        idx2 = k;
+                        break; 
+                    }
+                }
+
+                // 2. ★追加: 最後の文字同士チェック（オプションONかつ未ヒットの場合）
+                if (!isMatch && matchLastChar) {
+                    if (w1.length > 0 && w2.length > 0) {
+                        const last1 = w1.length - 1;
+                        const last2 = w2.length - 1;
+                        if (w1[last1] === charFrom && w2[last2] === charTo) {
+                            isMatch = true;
+                            idx1 = last1;
+                            idx2 = last2;
+                        }
+                    }
+                }
+
+                if (isMatch) {
+                    foundPairs.push({
+                        groupName: group.groupName,
+                        w1: w1,
+                        w2: w2,
+                        idx1: idx1,
+                        idx2: idx2
+                    });
+                }
+            }
+        }
+    });
+
+    countEl.innerText = `ヒット: ${foundPairs.length}件`;
+
+    if (foundPairs.length === 0) {
+        resultArea.innerHTML = `<div class="no-result">見つかりませんでした</div>`;
+        return;
+    }
+
+    // 結果表示
+    foundPairs.forEach(item => {
+        const card = document.createElement('div');
+        card.className = 'group-card match-perfect';
+        
+        // ハイライト処理（位置指定）
+        const highlightChar = (str, idx) => {
+            if (idx < 0 || idx >= str.length) return str;
+            return str.substring(0, idx) + 
+                   `<span class="highlight">${str[idx]}</span>` + 
+                   str.substring(idx + 1);
+        };
+
+        const w1Html = highlightChar(item.w1, item.idx1);
+        const w2Html = highlightChar(item.w2, item.idx2);
+
+        card.innerHTML = `
+            <span class="group-name">${item.groupName}</span>
+            <div class="word-list">
+                <span class="word-item">${w1Html}</span>
+                <span style="font-size:12px; align-self:center;">→</span>
+                <span class="word-item">${w2Html}</span>
+            </div>
+        `;
+        resultArea.appendChild(card);
+    });
+}
+
 
 // ------------------------------------
 // 五十音表検索機能
@@ -52,48 +184,46 @@ const GOJUON_LAYOUT = [
     ['','を','ろ','よ','も','ほ','の','と','そ','こ','お']
 ];
 
-let selectedCells = []; 
-
-// 辞書ファイルを読み込む
+// 辞書読み込み
 async function loadAllDictionaries() {
     const statusEl = document.getElementById('txtStatus');
     statusEl.innerText = "辞書読み込み中...";
-    
     const loadFile = async (filename) => {
         try {
             const res = await fetch(filename);
             if (!res.ok) return [];
             const text = await res.text();
             return text.split(/\r\n|\n/).map(w => w.trim()).filter(w => w);
-        } catch (e) {
-            return [];
-        }
+        } catch (e) { return []; }
     };
 
-    const [std, pig] = await Promise.all([
+    const [std, pig, eng] = await Promise.all([
         loadFile('日本語一般語.txt'),
-        loadFile('豚辞書.txt')
+        loadFile('豚辞書.txt'),
+        loadFile('英語一般語.txt')
     ]);
 
     dictStandard = std;
     dictPig = pig;
+    dictEnglish = eng;
 
     let msg = "";
-    if (dictStandard.length > 0) msg += `一般語:${dictStandard.length}語 `;
-    else msg += `一般語:読込失敗 `;
-    
-    if (dictPig.length > 0) msg += `豚辞書:${dictPig.length}語 `;
-    else msg += `豚辞書:読込失敗 `;
-
+    msg += `日:${std.length}語 `;
+    msg += `豚:${pig.length}語 `;
+    msg += `英:${eng.length}語`;
     statusEl.innerText = msg;
 }
 
-function initGojuuonTable() {
-    const grid = document.getElementById('gojuonGrid');
+// グリッド生成（共通）
+function initGrid(gridId, canvasId, layout) {
+    const grid = document.getElementById(gridId);
     if(!grid) return;
-    
     grid.innerHTML = "";
-    GOJUON_LAYOUT.forEach((row, rIndex) => {
+    const cols = layout[0].length;
+    grid.style.gridTemplateColumns = `repeat(${cols}, 40px)`;
+    grid.style.gridTemplateRows = `repeat(${layout.length}, 40px)`;
+
+    layout.forEach((row, rIndex) => {
         row.forEach((char, cIndex) => {
             const div = document.createElement('div');
             div.className = char ? 'cell' : 'cell empty';
@@ -101,19 +231,44 @@ function initGojuuonTable() {
             div.dataset.r = rIndex;
             div.dataset.c = cIndex;
             div.dataset.char = char;
-            
             if (char) {
                 div.onclick = () => onCellClick(div, rIndex, cIndex, char);
             }
             grid.appendChild(div);
         });
     });
-    
     setTimeout(() => {
-        const canvas = document.getElementById('lineCanvas');
-        canvas.width = grid.offsetWidth;
-        canvas.height = grid.offsetHeight;
+        const canvas = document.getElementById(canvasId);
+        if(canvas) {
+            canvas.width = grid.offsetWidth;
+            canvas.height = grid.offsetHeight;
+        }
     }, 100);
+}
+
+// カスタム表作成
+function createCustomTable() {
+    const text = document.getElementById('customInputText').value.replace(/\s/g, '').toUpperCase();
+    const cols = parseInt(document.getElementById('customCols').value, 10);
+    if(!text || cols < 1) return;
+
+    customLayout = [];
+    let currentRow = [];
+    for (let i = 0; i < text.length; i++) {
+        currentRow.push(text[i]);
+        if (currentRow.length === cols) {
+            customLayout.push(currentRow);
+            currentRow = [];
+        }
+    }
+    if (currentRow.length > 0) {
+        while(currentRow.length < cols) currentRow.push('');
+        customLayout.push(currentRow);
+    }
+
+    activeLayout = customLayout;
+    resetSelection();
+    initGrid('customGrid', 'lineCanvasCustom', customLayout);
 }
 
 function onCellClick(div, r, c, char) {
@@ -124,30 +279,35 @@ function onCellClick(div, r, c, char) {
         selectedCells.push({char: char, r: r, c: c});
         div.classList.add('selected');
     }
-    
     updateDisplay();
     drawLines();
     searchByShape();
 }
 
-function resetGojuon() {
+function resetSelection() {
     selectedCells = [];
     document.querySelectorAll('.cell').forEach(c => c.classList.remove('selected'));
     updateDisplay();
     drawLines();
-    document.getElementById('gojuonResultArea').innerHTML = "";
+    const resultId = (currentMode === 'gojuon') ? 'gojuonResultArea' : 'customResultArea';
+    document.getElementById(resultId).innerHTML = "";
 }
 
 function updateDisplay() {
     const text = selectedCells.map(s => s.char).join(' → ');
-    document.getElementById('gojuonSelectDisplay').innerText = "選択: " + (text || "なし");
+    const displayId = (currentMode === 'gojuon') ? 'gojuonSelectDisplay' : 'customSelectDisplay';
+    const displayEl = document.getElementById(displayId);
+    if(displayEl) displayEl.innerText = "選択: " + (text || "なし");
 }
 
 function drawLines() {
-    const canvas = document.getElementById('lineCanvas');
+    const canvasId = (currentMode === 'gojuon') ? 'lineCanvasGojuon' : 'lineCanvasCustom';
+    const gridId = (currentMode === 'gojuon') ? 'gojuonGrid' : 'customGrid';
+    const canvas = document.getElementById(canvasId);
+    const grid = document.getElementById(gridId);
+    if (!canvas || !grid) return;
+
     const ctx = canvas.getContext('2d');
-    const grid = document.getElementById('gojuonGrid');
-    
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     if (selectedCells.length < 2) return;
 
@@ -174,24 +334,29 @@ function drawLines() {
 
 // 形状検索ロジック
 function searchByShape() {
-    const resultArea = document.getElementById('gojuonResultArea');
-    const allowRotation = document.getElementById('allowRotation').checked;
-    const allowReflection = document.getElementById('allowReflection').checked;
-    const useStd = document.getElementById('useDictStandard').checked;
-    const usePig = document.getElementById('useDictPig').checked;
+    const isCustom = (currentMode === 'custom');
+    const resultArea = document.getElementById(isCustom ? 'customResultArea' : 'gojuonResultArea');
+    
+    // IDの接尾辞を切り替え
+    const suffix = isCustom ? '_custom' : '';
+    const allowRotation = document.getElementById('allowRotation' + suffix).checked;
+    const allowReflection = document.getElementById('allowReflection' + suffix).checked;
+    const useStd = document.getElementById('useDictStandard' + suffix).checked;
+    const usePig = document.getElementById('useDictPig' + suffix).checked;
+    const useEngEl = document.getElementById('useDictEnglish' + suffix);
+    const useEng = useEngEl ? useEngEl.checked : false;
 
     resultArea.innerHTML = "";
-    
     if (selectedCells.length < 2) return;
 
     let targetWords = [];
     if (useStd) targetWords = targetWords.concat(dictStandard);
     if (usePig) targetWords = targetWords.concat(dictPig);
+    if (useEng) targetWords = targetWords.concat(dictEnglish);
     targetWords = [...new Set(targetWords)];
 
     if (targetWords.length === 0) return;
 
-    // 1. 入力ベクトル列
     const inputVectors = [];
     for(let i=0; i<selectedCells.length-1; i++) {
         inputVectors.push({
@@ -200,16 +365,13 @@ function searchByShape() {
         });
     }
 
-    // 2. パターン生成（回転・反転のみ、逆順なし）
-    let patterns = [inputVectors]; // 0度
-
+    let patterns = [inputVectors]; 
     if (allowRotation) {
         const rot90 = inputVectors.map(v => ({ dr: v.dc, dc: -v.dr }));
         const rot180 = inputVectors.map(v => ({ dr: -v.dr, dc: -v.dc }));
         const rot270 = inputVectors.map(v => ({ dr: -v.dc, dc: v.dr }));
         patterns.push(rot90, rot180, rot270);
     }
-
     if (allowReflection) {
         const currentPatterns = [...patterns];
         currentPatterns.forEach(pat => {
@@ -220,7 +382,6 @@ function searchByShape() {
 
     const matchedWords = [];
 
-    // 3. マッチング
     targetWords.forEach(word => {
         if (word.length !== selectedCells.length) return;
 
@@ -228,14 +389,13 @@ function searchByShape() {
         let isValid = true;
         for (let char of word) {
             const normalized = normalizeString(char);
-            const coord = getCoord(normalized);
+            const coord = getCoord(normalized, activeLayout);
             if (!coord) {
                 isValid = false;
                 break;
             }
             coords.push(coord);
         }
-
         if (!isValid) return;
 
         const wordVectors = [];
@@ -280,12 +440,10 @@ function searchByShape() {
     resultArea.appendChild(card);
 }
 
-function getCoord(char) {
-    for(let r=0; r<GOJUON_LAYOUT.length; r++) {
-        for(let c=0; c<GOJUON_LAYOUT[r].length; c++) {
-            if (GOJUON_LAYOUT[r][c] === char) {
-                return {r: r, c: c};
-            }
+function getCoord(char, layout) {
+    for(let r=0; r<layout.length; r++) {
+        for(let c=0; c<layout[r].length; c++) {
+            if (layout[r][c] === char) return {r, c};
         }
     }
     return null;
@@ -296,7 +454,9 @@ function getCoord(char) {
 // ------------------------------------
 function searchKanji() {
     const rawInput = document.getElementById('kanjiInput').value.trim();
+    // 漢字検索は入力をそのまま使う（カタカナ変換しない）
     const searchInput = rawInput;
+
     const sortOption = document.getElementById('sortOption').value;
     const checkbox = document.getElementById('useExtendedSearch');
     const useExtended = checkbox ? checkbox.checked : false;
@@ -368,7 +528,6 @@ function openModal(item) {
     const body = document.getElementById('modalBody');
     const strokeDisplay = item.s > 0 ? item.s + '画' : '画数不明';
     
-    // タグをクリックすると検索を実行
     const makeTags = (list, className) => {
         if (!list || list.length === 0) return '<span style="color:#ccc; font-size:12px;">なし</span>';
         return list.map(word => `<span class="${className} clickable-tag" onclick="searchByTag('${word}')">${word}</span>`).join('');
@@ -424,7 +583,8 @@ function openModal(item) {
 function searchByTag(tag) {
     closeModal();
     document.getElementById('kanjiInput').value = tag;
-    // 勝手にチェックをつける処理は削除しました
+    const checkbox = document.getElementById('useExtendedSearch');
+    if (checkbox) checkbox.checked = true;
     searchKanji();
 }
 
