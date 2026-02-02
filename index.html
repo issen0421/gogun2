@@ -3,236 +3,120 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>語群検索システム</title>
-    <style>
-        body { font-family: "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif; background: #f8f9fa; color: #333; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; }
-        .container { max-width: 800px; width: 100%; text-align: center; }
-        h1 { color: #2c3e50; margin-bottom: 10px; font-size: 24px; }
-        .description { color: #7f8c8d; margin-bottom: 20px; font-size: 14px; }
-        
-        /* 検索エリア */
-        .search-box { position: sticky; top: 10px; z-index: 100; background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 100%; box-sizing: border-box; }
-        input[type="text"] { width: 90%; padding: 15px; font-size: 16px; border: 2px solid #dfe6e9; border-radius: 10px; outline: none; transition: border-color 0.3s; }
-        input[type="text"]:focus { border-color: #3498db; }
-        
-        .options { margin-top: 15px; display: flex; justify-content: center; gap: 20px; font-size: 14px; color: #555; }
-        .checkbox-label { display: flex; align-items: center; cursor: pointer; user-select: none; }
-        .checkbox-label input { margin-right: 8px; transform: scale(1.2); cursor: pointer; }
-
-        .result-count { margin-top: 15px; font-size: 14px; color: #95a5a6; }
-        .result-area { margin-top: 20px; display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 15px; width: 100%; }
-        
-        /* カードデザイン */
-        .group-card { background: white; border-radius: 12px; padding: 20px; text-align: left; box-shadow: 0 2px 8px rgba(0,0,0,0.05); border-top: 4px solid #3498db; transition: transform 0.2s; position: relative; }
-        .group-card:hover { transform: translateY(-3px); }
-        .match-perfect { border-top-color: #27ae60; }
-        .match-near { border-top-color: #f39c12; opacity: 0.9; }
-
-        .group-name { display: block; font-size: 12px; color: #3498db; font-weight: bold; margin-bottom: 8px; text-transform: uppercase; }
-        .match-perfect .group-name { color: #27ae60; }
-        .match-near .group-name { color: #e67e22; }
-
-        .word-list { display: flex; flex-wrap: wrap; gap: 8px; }
-        .word-item { background: #ebf5fb; color: #2980b9; padding: 4px 12px; border-radius: 6px; font-size: 18px; font-weight: bold; }
-        
-        /* ハイライト（赤字） */
-        .highlight { color: #e74c3c; font-weight: 900; text-decoration: underline; }
-
-        .badge { position: absolute; top: 10px; right: 10px; font-size: 10px; padding: 2px 8px; border-radius: 10px; color: white; font-weight: bold; }
-        .badge-perfect { background: #27ae60; }
-        .badge-near { background: #f39c12; }
-        .missing-info { font-size: 11px; color: #e67e22; margin-top: 8px; font-style: italic; }
-        .no-result { grid-column: 1 / -1; padding: 50px; color: #bdc3c7; font-size: 18px; }
-        .loading { grid-column: 1 / -1; color: #3498db; font-weight: bold; padding: 20px; }
-    </style>
+    <title>謎解き検索システム</title>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
 <div class="container">
-    <h1>語群検索システム</h1>
-    <p class="description">スプシ連動版</p>
-
-    <div class="search-box">
-        <input type="text" id="searchInput" placeholder="ひらがなorアルファベットを入力" oninput="search()">
-        
-        <div class="options">
-            <label class="checkbox-label">
-                <input type="checkbox" id="looseMode" onchange="search()">
-                濁音・半濁音・拗音を区別しない（が＝か、っ＝つ）
-            </label>
-        </div>
-
-        <div id="resultCount" class="result-count">データを読み込み中...</div>
+    <h1>検索システム</h1>
+    
+    <div class="tab-buttons">
+        <button class="tab-btn active" onclick="switchTab('word')">語群検索</button>
+        <button class="tab-btn" onclick="switchTab('kanji')">漢字検索</button>
+        <button class="tab-btn" onclick="switchTab('gojuon')">五十音表</button>
     </div>
 
-    <div id="resultArea" class="result-area"></div>
+    <!-- 語群検索タブ -->
+    <div id="tab-word" class="tab-content active">
+        <p class="description">スプレッドシート連動版</p>
+        <div class="search-box">
+            <input type="text" id="searchInput" placeholder="ひらがなorアルファベットを入力" oninput="searchWords()">
+            <div class="options">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="looseMode" onchange="searchWords()">
+                    濁音・半濁音・拗音を区別しない
+                </label>
+            </div>
+            <div id="resultCount" class="result-count">データを読み込み中...</div>
+        </div>
+        <div id="resultArea" class="result-area"></div>
+    </div>
+
+    <!-- 漢字検索タブ -->
+    <div id="tab-kanji" class="tab-content">
+        <p class="description">小学校で習う漢字（1026字）の検索</p>
+        <div class="search-box">
+            <input type="text" id="kanjiInput" placeholder="部首や漢字を入力（例：言、心）" oninput="searchKanji()">
+            <div class="options">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="useExtendedSearch" onchange="searchKanji()">
+                    拡張キーワードも含める
+                </label>
+            </div>
+            <div class="sort-options">
+                <span>並び替え:</span>
+                <select id="sortOption" onchange="searchKanji()">
+                    <option value="grade_asc">学年順 (低→高)</option>
+                    <option value="grade_desc">学年順 (高→低)</option>
+                    <option value="stroke_asc">画数順 (少→多)</option>
+                    <option value="stroke_desc">画数順 (多→少)</option>
+                </select>
+            </div>
+            <div id="kanjiCount" class="result-count">全1026字から検索</div>
+        </div>
+        <div id="kanjiResultArea" class="result-area kanji-grid"></div>
+    </div>
+
+    <!-- ▼▼▼ 五十音表検索タブ ▼▼▼ -->
+    <div id="tab-gojuon" class="tab-content">
+        <p class="description">
+            選択したマスの「形」と同じ動きをする単語を探します<br>
+        </p>
+        
+        <div class="gojuon-controls">
+            <button class="btn-reset" onclick="resetGojuon()">リセット</button>
+            
+            <!-- 辞書選択 -->
+            <div class="gojuon-options" style="border-bottom:1px dashed #ccc; padding-bottom:10px; margin-bottom:10px;">
+                <span style="font-size:12px; font-weight:bold; color:#555; display:block; width:100%;">使用する辞書:</span>
+                <label class="checkbox-label">
+                    <input type="checkbox" id="useDictStandard" checked onchange="searchByShape()">
+                    日本語一般語
+                </label>
+                <label class="checkbox-label">
+                    <input type="checkbox" id="useDictPig" onchange="searchByShape()">
+                    豚辞書
+                </label>
+            </div>
+
+            <!-- 形状オプション -->
+            <div class="gojuon-options">
+                <span style="font-size:12px; font-weight:bold; color:#555; display:block; width:100%;">形状オプション:</span>
+                <label class="checkbox-label">
+                    <input type="checkbox" id="allowRotation" onchange="searchByShape()">
+                    回転OK
+                </label>
+                <label class="checkbox-label">
+                    <input type="checkbox" id="allowReflection" onchange="searchByShape()">
+                    反転OK
+                </label>
+            </div>
+            
+            <div id="gojuonSelectDisplay" style="margin-top:10px;">選択: なし</div>
+        </div>
+
+        <div class="gojuon-wrapper">
+            <canvas id="lineCanvas"></canvas>
+            <div id="gojuonGrid" class="gojuon-grid"></div>
+        </div>
+
+        <div id="txtStatus" class="result-count">辞書ファイルを読み込み中...</div>
+        <div id="gojuonResultArea" class="result-area"></div>
+    </div>
+
 </div>
 
-<script>
-    // ▼▼▼ ここにGASのウェブアプリURLを貼り付けてください ▼▼▼
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbwjavHiBOUOYrA_WCq2lxuWtuOMpGWsc_D7MtMn0tgdVjTqE8m_7cbcguahrbkCEtd_Uw/exec"; 
-    // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
+<!-- 詳細表示モーダル -->
+<div id="detailModal" class="modal">
+    <div class="modal-content">
+        <span class="close-btn" onclick="closeModal()">&times;</span>
+        <div id="modalBody"></div>
+    </div>
+</div>
 
-    let appData = [];
-
-    // 起動時にデータを取得
-    window.onload = function() {
-        loadData();
-    };
-
-    // スプレッドシートからデータを取得する関数
-    async function loadData() {
-        const countEl = document.getElementById('resultCount');
-        const resultArea = document.getElementById('resultArea');
-        
-        countEl.innerText = "スプレッドシートからデータを読み込んでいます...";
-        resultArea.innerHTML = '<div class="loading">読み込み中...</div>';
-
-        try {
-            const response = await fetch(GAS_URL);
-            if (!response.ok) {
-                throw new Error("ネットワーク応答エラー");
-            }
-            appData = await response.json();
-            
-            countEl.innerText = `読み込み完了（全${appData.length}件）。文字を入力してください。`;
-            resultArea.innerHTML = ""; // ロード表示を消す
-            search(); // すでに入力がある場合に備えて検索実行
-        } catch (error) {
-            console.error(error);
-            countEl.innerText = "データの読み込みに失敗しました。";
-            resultArea.innerHTML = `<div class="no-result" style="color:red">エラー: データが取得できませんでした。<br>URLが正しいか、GASがデプロイされているか確認してください。</div>`;
-        }
-    }
-
-    // 文字の正規化（濁点・半濁点・拗音の除去）
-    function normalizeString(str) {
-        let res = str.normalize('NFD').replace(/[\u3099\u309A]/g, "");
-        const smallToLarge = {
-            'っ': 'つ', 'ゃ': 'や', 'ゅ': 'ゆ', 'ょ': 'よ',
-            'ぁ': 'あ', 'ぃ': 'い', 'ぅ': 'う', 'ぇ': 'え', 'ぉ': 'お'
-        };
-        return res.split('').map(char => smallToLarge[char] || char).join('');
-    }
-
-    // ハイライト用のHTML生成関数
-    function createHighlightedHtml(word, inputChars, looseMode) {
-        let html = "";
-        for (let char of word) {
-            let isMatch = false;
-            
-            // 入力された文字の中に、この文字と一致するものがあるか確認
-            for (let inputChar of inputChars) {
-                let c1 = char.toLowerCase();
-                let c2 = inputChar.toLowerCase();
-                
-                if (looseMode) {
-                    c1 = normalizeString(c1);
-                    c2 = normalizeString(c2);
-                }
-                
-                if (c1 === c2) {
-                    isMatch = true;
-                    break;
-                }
-            }
-            
-            if (isMatch) {
-                html += `<span class="highlight">${char}</span>`;
-            } else {
-                html += char;
-            }
-        }
-        return html;
-    }
-
-    // 検索処理
-    function search() {
-        const input = document.getElementById('searchInput').value.trim();
-        const resultArea = document.getElementById('resultArea');
-        const resultCount = document.getElementById('resultCount');
-        const looseMode = document.getElementById('looseMode').checked;
-        
-        resultArea.innerHTML = "";
-
-        // データがまだロードされていない場合は何もしない
-        if (appData.length === 0) return;
-
-        if (!input) {
-            resultCount.innerText = `文字を入力してください（全${appData.length}語群）`;
-            return;
-        }
-
-        const inputChars = input.split("");
-        let perfectMatches = [];
-        let nearMatches = [];
-
-        appData.forEach(group => {
-            // スプレッドシートのデータによってはwordsが文字列のままの場合があるので配列化を確認
-            // (GAS側で配列にしていますが、念の為)
-            let wordsArray = Array.isArray(group.words) ? group.words : [];
-            
-            const combinedText = wordsArray.join("");
-            
-            const missingChars = inputChars.filter(originalChar => {
-                let targetChar = originalChar.toLowerCase();
-                let targetTextToSearch = combinedText.toLowerCase();
-
-                if (looseMode) {
-                    targetChar = normalizeString(targetChar);
-                    targetTextToSearch = normalizeString(targetTextToSearch);
-                }
-                
-                return !targetTextToSearch.includes(targetChar);
-            });
-            
-            if (missingChars.length === 0) {
-                perfectMatches.push({ group: group, missing: [] });
-            } else if (missingChars.length === 1) {
-                nearMatches.push({ group: group, missing: missingChars });
-            }
-        });
-
-        // ソート：単語数が少ない順
-        perfectMatches.sort((a, b) => a.group.words.length - b.group.words.length);
-        nearMatches.sort((a, b) => a.group.words.length - b.group.words.length);
-
-        const allMatches = [...perfectMatches, ...nearMatches];
-
-        allMatches.forEach(match => {
-            const group = match.group;
-            const isPerfect = match.missing.length === 0;
-            const card = document.createElement('div');
-            card.className = `group-card ${isPerfect ? 'match-perfect' : 'match-near'}`;
-            const badgeClass = isPerfect ? 'badge-perfect' : 'badge-near';
-            const badgeText = isPerfect ? '揃いました！' : 'あと1文字！';
-            
-            const wordsHtml = group.words.map(w => {
-                const highlighted = createHighlightedHtml(w, inputChars, looseMode);
-                return `<span class="word-item">${highlighted}</span>`;
-            }).join("");
-            
-            let html = `
-                <span class="badge ${badgeClass}">${badgeText}</span>
-                <span class="group-name">${group.groupName}</span>
-                <div class="word-list">${wordsHtml}</div>
-            `;
-            
-            if (!isPerfect) {
-                html += `<div class="missing-info">※ 「${match.missing[0]}」が含まれていません</div>`;
-            }
-            card.innerHTML = html;
-            resultArea.appendChild(card);
-        });
-
-        if (allMatches.length > 0) {
-            resultCount.innerHTML = `完全一致: <strong style="color:#27ae60">${perfectMatches.length}件</strong> / 惜しい: <strong style="color:#e67e22">${nearMatches.length}件</strong>`;
-        } else {
-            resultCount.innerText = "条件に合う語群が見つかりませんでした。";
-            resultArea.innerHTML = `<div class="no-result">条件に合う語群が見つかりませんでした。</div>`;
-        }
-    }
-</script>
+<script src="kanji_data.js"></script>
+<script src="script.js"></script>
 
 </body>
 </html>
