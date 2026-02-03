@@ -57,6 +57,67 @@ function switchTab(tabName) {
     }
 }
 
+// -------------------------------------------------------
+//  ▼▼▼ ここから下が消えていた関数群です（追加・復旧） ▼▼▼
+// -------------------------------------------------------
+
+// セルクリック時の共通処理
+function onCellClick(div, r, c, char) {
+    // 既に選択済みの最後のセルと同じなら解除
+    if (selectedCells.length > 0 && selectedCells[selectedCells.length-1].char === char) {
+        selectedCells.pop();
+        div.classList.remove('selected');
+    } else {
+        selectedCells.push({char: char, r: r, c: c});
+        div.classList.add('selected');
+    }
+    
+    updateDisplay();
+    drawLines(); // 描画更新
+    
+    // モードに応じた検索を実行
+    if (currentMode === 'gojuon' && typeof searchGojuon === 'function') {
+        searchGojuon();
+    } else if (currentMode === 'custom' && typeof searchCustom === 'function') {
+        searchCustom();
+    }
+}
+
+// 選択リセット (ReferenceErrorの原因だった関数)
+function resetSelection() {
+    selectedCells = [];
+    document.querySelectorAll('.cell').forEach(c => c.classList.remove('selected'));
+    
+    updateDisplay();
+    drawLines();
+
+    // 結果クリア
+    if(document.getElementById('gojuonResultArea')) document.getElementById('gojuonResultArea').innerHTML = "";
+    if(document.getElementById('customResultArea')) document.getElementById('customResultArea').innerHTML = "";
+}
+
+// 選択内容の表示更新
+function updateDisplay() {
+    const text = selectedCells.map(s => s.char).join(' → ');
+    
+    const gojuonDisp = document.getElementById('gojuonSelectDisplay');
+    if(gojuonDisp) gojuonDisp.innerText = "選択: " + (text || "なし");
+    
+    const customDisp = document.getElementById('customSelectDisplay');
+    if(customDisp) customDisp.innerText = "選択: " + (text || "なし");
+}
+
+// 線の描画ラッパー（現在のモードに合わせて canvasId を選ぶ）
+function drawLines() {
+    const canvasId = (currentMode === 'gojuon') ? 'lineCanvasGojuon' : 'lineCanvasCustom';
+    const gridId = (currentMode === 'gojuon') ? 'gojuonGrid' : 'customGrid';
+    drawLinesCommon(canvasId, gridId, selectedCells);
+}
+
+// -------------------------------------------------------
+//  ▲▲▲ ここまで（復旧完了） ▲▲▲
+// -------------------------------------------------------
+
 // ユーティリティ: ひらがな→カタカナ
 function hiraToKata(str) {
     if(!str) return "";
