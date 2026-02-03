@@ -1,185 +1,71 @@
-const HIRAGANA_SEQUENCE = "あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわをん";
-const ALPHABET_SEQUENCE = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-
-function searchShift() {
-    const rawInput = document.getElementById('shiftInput').value.trim();
-    const resultArea = document.getElementById('shiftResultArea');
-    const countEl = document.getElementById('shiftCount');
-    
-    const useStd = document.getElementById('useDictStandard_shift').checked;
-    const usePig = document.getElementById('useDictPig_shift').checked;
-    const useEng = document.getElementById('useDictEnglish_shift').checked;
-    const allowAnagram = document.getElementById('allowAnagram').checked;
-    const allowPlusMinus = document.getElementById('allowPlusMinus').checked;
-
-    resultArea.innerHTML = "";
-
-    if (!rawInput) {
-        countEl.innerText = "文字を入力してください";
-        return;
-    }
-
-    let targetDictKeys = [];
-    if (useStd) targetDictKeys.push('std');
-    if (usePig) targetDictKeys.push('pig');
-    if (useEng) targetDictKeys.push('eng');
-
-    if (targetDictKeys.length === 0) {
-        countEl.innerText = "辞書を読み込み中または選択されていません";
-        return;
-    }
-
-    let isAlphabet = /^[a-zA-Z]+$/.test(rawInput);
-    let sequence = "";
-    let normalizedInput = "";
-
-    if (isAlphabet) {
-        sequence = ALPHABET_SEQUENCE;
-        normalizedInput = rawInput.toUpperCase();
-    } else {
-        sequence = HIRAGANA_SEQUENCE;
+normalizedInput = rawInput.toUpperCase();
+} else {
+sequence = HIRAGANA_SEQUENCE;
+        normalizedInput = normalizeString(rawInput); // word_data.js の関数を利用
+        // ただしシーケンスに含まれない文字（正規化しても）があるかチェック
+        // normalizeStringは「っ->つ」等はするが、シーケンス外の記号等は残る可能性がある
+        // 濁音・半濁音・拗音を正規化して基本文字にする（同一視するため）
         normalizedInput = normalizeToSequence(rawInput, sequence);
-    }
+}
 
-    for (let char of normalizedInput) {
-        if (!sequence.includes(char)) {
-            countEl.innerText = `対応していない文字が含まれています: ${char}`;
-            return;
-        }
-    }
+    // 入力文字がシーケンスに含まれていない場合はエラー
+for (let char of normalizedInput) {
+if (!sequence.includes(char)) {
+countEl.innerText = `対応していない文字が含まれています: ${char}`;
+@@ -70,12 +70,15 @@ function searchShift() {
+if(key === 'eng') dict = dictEnglish;
 
-    let results = [];
+dict.forEach(word => {
+                // 文字数チェック
+if (word.length !== normalizedInput.length) return;
+const isWordAlpha = /^[a-zA-Z]+$/.test(word);
+if (isAlphabet !== isWordAlpha) return;
 
-    if (allowPlusMinus) {
-        let matched = [];
-        
-        targetDictKeys.forEach(key => {
-            let dict = [];
-            if(key === 'std') dict = dictStandard;
-            if(key === 'pig') dict = dictPig;
-            if(key === 'eng') dict = dictEnglish;
-
-            dict.forEach(word => {
-                if (word.length !== normalizedInput.length) return;
-                const isWordAlpha = /^[a-zA-Z]+$/.test(word);
-                if (isAlphabet !== isWordAlpha) return;
-
+// 辞書単語も正規化
+                let normalizedWord = normalizeString(word);
                 let normalizedWord = "";
                 if (isAlphabet) normalizedWord = word.toUpperCase();
                 else normalizedWord = normalizeToSequence(word, sequence);
 
-                let idxIn = sequence.indexOf(normalizedInput[0]);
-                let idxWord = sequence.indexOf(normalizedWord[0]);
-                if (idxIn === -1 || idxWord === -1) return;
+// 1文字目のズレ幅(絶対値)を計算
+let idxIn = sequence.indexOf(normalizedInput[0]);
+@@ -122,8 +125,9 @@ function searchShift() {
+} else {
+// [通常モード] (固定ずらし + アナグラム)
 
-                let diff = (idxWord - idxIn + sequence.length) % sequence.length;
-                let shiftAmount = Math.min(diff, sequence.length - diff); 
-
-                let isMatch = true;
-                for (let i = 1; i < normalizedInput.length; i++) {
-                    let iIn = sequence.indexOf(normalizedInput[i]);
-                    let iW = sequence.indexOf(normalizedWord[i]);
-                    if (iIn === -1 || iW === -1) { isMatch = false; break; }
-                    
-                    let d = (iW - iIn + sequence.length) % sequence.length;
-                    let s = Math.min(d, sequence.length - d);
-                    
-                    if (s !== shiftAmount) {
-                        isMatch = false;
-                        break;
-                    }
-                }
-
-                if (isMatch) {
-                    matched.push(word);
-                }
-            });
-        });
-
-        matched = [...new Set(matched)];
-        
-        if (matched.length > 0) {
-            results.push({
-                shift: "±同一視",
-                shiftedString: "（複数パターン）",
-                words: matched
-            });
-        }
-
-    } else {
-        for (let shift = 0; shift < sequence.length; shift++) {
-            let shiftedString = "";
-            for (let char of normalizedInput) {
-                let index = sequence.indexOf(char);
-                let shiftedIndex = (index + shift) % sequence.length;
-                shiftedString += sequence[shiftedIndex];
-            }
-
-            let matched = [];
-            targetDictKeys.forEach(key => {
-                if (allowAnagram) {
-                    const sorted = shiftedString.split('').sort().join('');
-                    const found = anagramMaps[key][sorted];
-                    if (found) matched = matched.concat(found);
-                } else {
-                    if (dictSets[key].has(shiftedString)) {
-                        matched.push(shiftedString);
-                    }
-                }
-            });
-            matched = [...new Set(matched)];
-            
-            if (matched.length > 0) {
-                let shiftLabel = "";
-                if (shift === 0) shiftLabel = "そのまま";
-                else if (shift <= sequence.length / 2) shiftLabel = `+${shift}`;
-                else shiftLabel = `-${sequence.length - shift}`;
-
-                results.push({
-                    shift: shiftLabel,
-                    shiftedString: shiftedString,
-                    words: matched
-                });
-            }
-        }
-    }
-
-    if (results.length === 0) {
-        countEl.innerText = "見つかりませんでした";
-        resultArea.innerHTML = `<div class="no-result">条件に合う単語はありません</div>`;
-        return;
-    }
-
-    countEl.innerText = `${results.length}パターンのずらしで見つかりました`;
-
-    results.forEach(res => {
-        const card = document.createElement('div');
-        card.className = 'group-card match-perfect';
-        const wordsHtml = res.words.map(w => `<span class="word-item">${w}</span>`).join("");
-        card.innerHTML = `
-            <span class="group-name">
-                ずらし: <span style="color:#e74c3c; font-size:1.2em;">${res.shift}</span> 
-                (${res.shiftedString})
-            </span>
-            <div class="word-list">${wordsHtml}</div>
-        `;
-        resultArea.appendChild(card);
-    });
+        // 全パターンのずらしを試行
+        // 全パターンのずらしを試行 (0 to len-1)
+for (let shift = 0; shift < sequence.length; shift++) {
+            // ずらした文字列を作成
+let shiftedString = "";
+for (let char of normalizedInput) {
+let index = sequence.indexOf(char);
+@@ -189,3 +193,44 @@ function searchShift() {
+resultArea.appendChild(card);
+});
 }
 
+// 入力文字列を、指定されたシーケンス内の文字に正規化する
+// (濁点・小文字などを、シーケンスにある親文字に変換)
 function normalizeToSequence(str, sequence) {
     let res = "";
     for (let char of str) {
+        // そのままシーケンスにあればOK
         if (sequence.includes(char)) {
             res += char;
             continue;
         }
         
+        // 正規化（濁点除去・小文字変換）してトライ
+        // 五十音表独自の「同一視」ルール
         let normalizedChar = char;
+        
+        // カタカナ -> ひらがな
         if (/[\u30a1-\u30f6]/.test(char)) {
             normalizedChar = String.fromCharCode(char.charCodeAt(0) - 0x60);
         }
 
+        // 濁点・半濁点・小文字の手動マッピング
         const map = {
             'が':'か', 'ぎ':'き', 'ぐ':'く', 'げ':'け', 'ご':'こ',
             'ざ':'さ', 'じ':'し', 'ず':'す', 'ぜ':'せ', 'ぞ':'そ',
