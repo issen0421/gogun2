@@ -1,77 +1,66 @@
-// ------------------------------------
-// search_kanji.js
-// PART_EXPANSION の定義は kanji_parts.js に移動したため削除しました
-// ------------------------------------
-
 function expandKanjiKeywords() {
-    // KANJI_DATA が読み込まれていない場合は何もしない
     if (typeof KANJI_DATA === 'undefined') return;
-    
-    // PART_EXPANSION が読み込まれていない場合はエラーを出さずに終了（またはコンソール警告）
     if (typeof PART_EXPANSION === 'undefined') {
-        console.warn("PART_EXPANSION is not defined. Make sure kanji_parts.js is loaded.");
+        console.warn("PART_EXPANSION is not defined.");
         return;
     }
     
     KANJI_DATA.forEach(item => {
-        // 初期化
         if (!item.k2) item.k2 = [];
         if (!item.k3) item.k3 = [];
 
-        // --- レベルごとの処理関数 ---
-        const processLevel = (currentLevelKeywords, currentLevelName) => {
-            // 現在のレベルにあるキーワードを走査（追加中の変更を避けるためコピーを使用）
-            const keywords = [...currentLevelKeywords];
-            
-            keywords.forEach(key => {
+        // 自動追加用の一時セット
+        const autoAdd = { k: new Set(), k2: new Set(), k3: new Set() };
+
+        // 1. 展開ロジック (k -> k2 -> k3 の順に波及させる)
+        const processLevel = (currentKeywords, currentLevel) => {
+            currentKeywords.forEach(key => {
                 const rule = PART_EXPANSION[key];
                 if (rule) {
-                    // 1. same: 同じ階層に追加
-                    if (rule.same) {
-                        rule.same.forEach(p => {
-                            if (!item[currentLevelName].includes(p)) item[currentLevelName].push(p);
-                        });
-                    }
+                    if (rule.same) rule.same.forEach(p => autoAdd[currentLevel].add(p));
 
-                    // ターゲットレベルの決定 logic
-                    let target1 = (currentLevelName === 'k') ? 'k2' : 'k3';
-                    let target2 = 'k3'; // k の次は k2, それ以降(k2, k3)の下はすべて k3
+                    let target1 = (currentLevel === 'k') ? 'k2' : 'k3';
+                    if (rule.lower1) rule.lower1.forEach(p => autoAdd[target1].add(p));
 
-                    // 2. lower1: 1つ下の階層に追加
-                    if (rule.lower1) {
-                        rule.lower1.forEach(p => {
-                            if (!item[target1].includes(p)) item[target1].push(p);
-                        });
-                    }
-
-                    // 3. lower2: 2つ下の階層に追加
-                    if (rule.lower2) {
-                        rule.lower2.forEach(p => {
-                            if (!item[target2].includes(p)) item[target2].push(p);
-                        });
-                    }
+                    // kのlower2はk3へ。k2のlower2はk3へ。
+                    let target2 = 'k3';
+                    if (rule.lower2) rule.lower2.forEach(p => autoAdd[target2].add(p));
                 }
             });
         };
 
-        // 階層順に処理を実行 (k -> k2 -> k3)
-        // 上の階層から追加されたパーツが、次の階層の処理でさらに展開されるように順序を守る
         if (item.k) processLevel(item.k, 'k');
         if (item.k2) processLevel(item.k2, 'k2');
         if (item.k3) processLevel(item.k3, 'k3');
+
+        // 2. 統合と重複削除（自動登録優先＝手動で書いてあっても自動登録の場所に移動させるイメージ）
+        // 実際には「自動登録されるべきパーツが、他のフィールドにあったら削除し、あるべき場所に追加する」
+        
+        ['k', 'k2', 'k3'].forEach(targetField => {
+            const partsToAdd = Array.from(autoAdd[targetField]);
+            partsToAdd.forEach(part => {
+                // 他のすべてのフィールドからこのパーツを削除
+                ['k', 'k2', 'k3'].forEach(field => {
+                    const idx = item[field].indexOf(part);
+                    if (idx !== -1) item[field].splice(idx, 1);
+                });
+                // ターゲットに追加
+                item[targetField].push(part);
+            });
+        });
     });
 }
 
 function searchKanji() {
     const rawInput = document.getElementById('kanjiInput').value.trim();
     const searchInput = rawInput; 
-
     const sortOption = document.getElementById('sortOption').value;
     const useK2 = document.getElementById('useK2').checked;
     const useK3 = document.getElementById('useK3').checked;
     const resultArea = document.getElementById('kanjiResultArea');
     const countEl = document.getElementById('kanjiCount');
 
+    if (!resultArea) return;
     resultArea.innerHTML = "";
 
     if (typeof KANJI_DATA === 'undefined') {
@@ -85,7 +74,6 @@ function searchKanji() {
         const inputChars = searchInput.split('');
 
         filteredData = KANJI_DATA.filter(item => {
-            // 検索対象キーワードの結合
             let keywords = [...(item.k || [])];
             if (useK2 && item.k2) keywords = keywords.concat(item.k2);
             if (useK3 && item.k3) keywords = keywords.concat(item.k3);
@@ -106,7 +94,7 @@ function searchKanji() {
         return 0;
     });
 
-    countEl.innerText = `ヒット: ${filteredData.length}件`;
+    if(countEl) countEl.innerText = `ヒット: ${filteredData.length}件`;
 
     filteredData.forEach(item => {
         const card = document.createElement('div');
@@ -139,13 +127,15 @@ function openModal(item) {
         return list.map(word => `<span class="${className} clickable-tag" onclick="searchByTag('${word}')">${word}</span>`).join('');
     };
 
+    // 類似漢字検索（自分自身を分母にする）
     let similarHtml = '';
-    // 類似検索用に全キーワードを統合
     let allMyKeywords = [...(item.k || [])];
     if(item.k2) allMyKeywords = allMyKeywords.concat(item.k2);
     if(item.k3) allMyKeywords = allMyKeywords.concat(item.k3);
 
-    if (allMyKeywords.length >= 1) { 
+    const myTotal = allMyKeywords.length; // ★分母は自分のパーツ数
+
+    if (myTotal >= 1) { 
         const similarItems = KANJI_DATA.map(otherItem => {
             if (otherItem.c === item.c) return null;
             let otherKeywords = [...(otherItem.k || [])];
@@ -155,17 +145,22 @@ function openModal(item) {
 
             const commonKeywords = otherKeywords.filter(k => allMyKeywords.includes(k));
             const commonCount = commonKeywords.length;
-            const totalKeywords = otherKeywords.length;
-
+            
             if (commonCount >= 2) {
-                const ratio = commonCount / totalKeywords;
-                return { data: otherItem, count: commonCount, total: totalKeywords, ratio: ratio };
+                // ★一致率 = 共通数 / 自分の総数
+                const ratio = commonCount / myTotal;
+                return { 
+                    data: otherItem, 
+                    count: commonCount, 
+                    total: myTotal, // 表示用も自分
+                    ratio: ratio 
+                };
             }
             return null;
         }).filter(val => val !== null);
 
         similarItems.sort((a, b) => {
-            if (b.ratio !== a.ratio) return b.ratio - a.ratio;
+            if (b.ratio !== a.ratio) return b.ratio - a.ratio; // 一致率順
             return b.count - a.count;
         });
 
@@ -176,7 +171,7 @@ function openModal(item) {
                         <span class="similar-info">共通:${sim.count}/${sim.total}</span>
                     </div>`;
             }).join('');
-            similarHtml = `<div class="similar-section"><span class="similar-title">🔍 似ている漢字（一致率順）</span><div class="similar-list">${listHtml}</div></div>`;
+            similarHtml = `<div class="similar-section"><span class="similar-title">🔍 似ている漢字（共通数/自分のパーツ数）</span><div class="similar-list">${listHtml}</div></div>`;
         }
     }
 
@@ -197,11 +192,8 @@ function searchByTag(tag) {
     const modal = document.getElementById('detailModal');
     if (modal) modal.style.display = "none";
     document.getElementById('kanjiInput').value = tag;
-    
-    // タグ検索時はチェックボックスをONにする
     if(document.getElementById('useK2')) document.getElementById('useK2').checked = true;
     if(document.getElementById('useK3')) document.getElementById('useK3').checked = true;
-
     searchKanji();
 }
 

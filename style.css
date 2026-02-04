@@ -118,3 +118,39 @@ canvas { position: absolute; top: 0; left: 0; pointer-events: none; z-index: 10;
     opacity: 0.5;
     transform: scale(0.9);
 }
+/* --- 既存のCSSの下に追加、または input[type="text"] の部分を書き換え --- */
+
+/* 検索窓（テキスト入力）のスタイルを強化 */
+input[type="text"] {
+    width: 100%;             /* 親要素いっぱいまで広げる */
+    max-width: 600px;        /* ただし広がりすぎないように制限 */
+    box-sizing: border-box;  /* パディングを含めた幅計算にする（これで伸び縮みを防ぐ） */
+    padding: 12px;
+    font-size: 18px;
+    border: 2px solid #dfe6e9;
+    border-radius: 10px;
+    outline: none;
+    transition: 0.3s;
+}
+
+/* ついでにチェックボックス周りも少し安定させる */
+.options {
+    min-height: 40px; /* オプションエリアの高さが変わってガタつくのを防ぐ */
+}
+/* --- 既存のCSSの末尾に追加してください --- */
+
+/* ループ（境界またぎ）強調用 */
+.loop-highlight {
+    color: #e67e22;          /* オレンジ色 */
+    font-weight: bold;
+    background-color: #fff8e1; /* 薄い背景色 */
+    border-radius: 4px;
+    padding: 0 3px;
+    border: 1px solid #ffe0b2;
+}
+
+.loop-mark {
+    font-size: 0.7em;
+    vertical-align: text-top;
+    margin-left: 1px;
+}
